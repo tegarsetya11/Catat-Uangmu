@@ -306,7 +306,7 @@
             <h2>Ada pertanyaan atau ingin berkolaborasi?</h2>
             <p class="muted">Kunjungi portofolio developer untuk melihat karya dan informasi lebih lanjut.</p>
           </div>
-          <a class="button button-primary" href="https://tegar-setya-andiputra-portofolio.vercel.app/" target="_blank" rel="noopener noreferrer">Lihat Portofolio <i data-lucide="external-link"></i></a>
+          <a class="button button-primary" href="https://tegar-setya-andiputra-portofolio.vercel.app/" target="_blank" rel="noopener noreferrer">Hubungi Developer <i data-lucide="external-link"></i></a>
         </section>
         <button class="button button-outline app-info-back" data-page="home"><i data-lucide="arrow-left"></i> Kembali lihat uangmu</button>
       </div>`;
