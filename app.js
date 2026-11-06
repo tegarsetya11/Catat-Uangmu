@@ -291,7 +291,7 @@
         <section class="settings-section">
           <span class="eyebrow">TENTANG APLIKASI</span>
           <h2>Catat keuangan, lebih mudah</h2>
-          <p class="muted">Catat Uangmu adalah aplikasi pencatatan keuangan pribadi untuk membantu mengelola pemasukan, pengeluaran, saldo akun, dan aktivitas keuangan.</p>
+          <p class="muted">Tentang Proyek: Aplikasi Catat Uangmu dibangun untuk membantu pengguna mencatat, memantau, dan mengelola pemasukan serta pengeluaran keuangan secara praktis, terstruktur, dan mudah diakses kapan saja.</p>
           <ul class="app-info-list">
             <li><strong>Fitur utama:</strong> Catat transaksi dan transfer, kelola beberapa akun, lihat laporan, simpan catatan, serta cadangkan dan pulihkan data.</li>
             <li><strong>Penyimpanan data:</strong> Data disimpan secara lokal di browser pada perangkat ini dan tidak disinkronkan ke akun online. Gunakan menu Cadangkan data untuk memindahkan salinan ke perangkat lain.</li>
