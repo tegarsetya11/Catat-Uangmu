@@ -275,7 +275,39 @@
     return `${heading("Cadangkan dan pulihkan","Simpan salinan semua data atau pulihkan cadangan sebelumnya.")}<div class="report-grid"><div class="panel"><div class="panel-header"><h2>Cadangkan data</h2><span class="summary-icon"><i data-lucide="download"></i></span></div><p class="muted" style="font-size:10px;line-height:1.7">Unduh seluruh akun, transaksi aktif dan terhapus, kategori, catatan, serta pengaturan dalam berkas JSON.</p><button class="button button-primary" data-action="export-backup"><i data-lucide="download"></i> Unduh cadangan JSON</button></div><div class="panel"><div class="panel-header"><h2>Pulihkan data</h2><span class="summary-icon"><i data-lucide="upload"></i></span></div><p class="muted" style="font-size:10px;line-height:1.7">Impor berkas cadangan JSON valid. Data saat ini akan digantikan setelah konfirmasi.</p><label class="button button-outline"><i data-lucide="file-up"></i> Pilih berkas JSON<input id="restore-file" type="file" accept=".json,application/json" hidden></label></div></div><div class="panel"><div class="panel-header"><h2>Penyimpanan lokal</h2></div><p class="muted" style="font-size:10px">Data tersimpan di penyimpanan browser pada perangkat ini. Cadangkan data sebelum menghapus data situs dari browser.</p><div class="account-mini"><span class="account-mini-copy"><strong>Akun</strong></span><strong>${state.accounts.length}</strong></div><div class="account-mini"><span class="account-mini-copy"><strong>Transaksi aktif</strong></span><strong>${state.transactions.length}</strong></div><div class="account-mini"><span class="account-mini-copy"><strong>Catatan</strong></span><strong>${state.notes.length}</strong></div><button class="button button-danger button-small" data-action="clear-all-data">Hapus seluruh data aplikasi</button></div>`;
   }
   function renderAppInfo() {
-    return `${heading("Informasi Aplikasi","Tentang Catat Uangmu dan cara data Anda dikelola.")}<div class="panel"><div class="panel-header"><h2>Catat Uangmu</h2><span class="summary-icon"><i data-lucide="wallet"></i></span></div><p class="muted" style="font-size:11px;line-height:1.8">Aplikasi pencatatan keuangan pribadi untuk membantu mengelola pemasukan, pengeluaran, saldo akun, dan aktivitas keuangan.</p><div class="settings-section"><h3>Fitur utama</h3><p class="muted" style="font-size:10px;line-height:1.8">Catat transaksi dan transfer, kelola beberapa akun, lihat laporan, simpan catatan, serta cadangkan dan pulihkan data.</p></div><div class="settings-section"><h3>Penyimpanan data</h3><p class="muted" style="font-size:10px;line-height:1.8">Data disimpan secara lokal di browser pada perangkat ini dan tidak disinkronkan ke akun online. Gunakan menu Cadangkan data untuk menyimpan salinan dan memindahkannya ke perangkat lain.</p></div><div class="settings-section"><h3>Penggunaan offline</h3><p class="muted" style="font-size:10px;line-height:1.8">Setelah aplikasi dibuka saat online, fitur inti dapat digunakan kembali tanpa koneksi internet. Beberapa aset eksternal mungkin memerlukan koneksi.</p></div></div>`;
+    return `${heading("Informasi Aplikasi","Tentang Catat Uangmu, pengembang, dan cara data Anda dikelola.")}
+      <section class="app-info-developer">
+        <div class="app-info-portrait" aria-hidden="true">T</div>
+        <div class="app-info-developer-copy">
+          <span class="eyebrow">PROFIL DEVELOPER</span>
+          <h2>Tegar Setya Andiputra</h2>
+          <p>Frontend / Full-stack / Mobile App Developer</p>
+          <a class="button button-primary" href="https://tegar-setya-andiputra-portofolio.vercel.app/" target="_blank" rel="noopener noreferrer">Lihat Portofolio Developer <i data-lucide="external-link"></i></a>
+          <blockquote>“Membangun solusi digital yang bermanfaat dan mudah digunakan.”</blockquote>
+        </div>
+        <div class="app-info-logo"><img src="catat-uangmu-logo-192.png" alt="Logo Catat Uangmu"></div>
+      </section>
+      <div class="panel app-info-content">
+        <section class="settings-section">
+          <span class="eyebrow">TENTANG APLIKASI</span>
+          <h2>Catat keuangan, lebih mudah</h2>
+          <p class="muted">Catat Uangmu adalah aplikasi pencatatan keuangan pribadi untuk membantu mengelola pemasukan, pengeluaran, saldo akun, dan aktivitas keuangan.</p>
+          <ul class="app-info-list">
+            <li><strong>Fitur utama:</strong> Catat transaksi dan transfer, kelola beberapa akun, lihat laporan, simpan catatan, serta cadangkan dan pulihkan data.</li>
+            <li><strong>Penyimpanan data:</strong> Data disimpan secara lokal di browser pada perangkat ini dan tidak disinkronkan ke akun online. Gunakan menu Cadangkan data untuk memindahkan salinan ke perangkat lain.</li>
+            <li><strong>Penggunaan offline:</strong> Setelah aplikasi dibuka saat online, fitur inti dapat digunakan kembali tanpa koneksi internet. Beberapa aset eksternal mungkin memerlukan koneksi.</li>
+          </ul>
+        </section>
+        <section class="app-info-contact">
+          <div>
+            <span class="eyebrow">HUBUNGI DEVELOPER</span>
+            <h2>Ada pertanyaan atau ingin berkolaborasi?</h2>
+            <p class="muted">Kunjungi portofolio developer untuk melihat karya dan informasi lebih lanjut.</p>
+          </div>
+          <a class="button button-primary" href="https://tegar-setya-andiputra-portofolio.vercel.app/" target="_blank" rel="noopener noreferrer">Lihat Portofolio <i data-lucide="external-link"></i></a>
+        </section>
+        <button class="button button-outline app-info-back" data-page="home"><i data-lucide="arrow-left"></i> Kembali lihat uangmu</button>
+      </div>`;
   }
   function renderSettings() {
     const profilePhoto=state.settings.profilePhoto;
