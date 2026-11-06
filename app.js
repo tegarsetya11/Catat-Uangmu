@@ -186,7 +186,7 @@
     if (window.lucide) window.lucide.createIcons();
     if (page === "reports" || page === "all-reports") drawChart();
   }
-  const heading = (title, description, action = "") => `<div class="page-heading"><div><span class="eyebrow">RUANG KEUANGAN</span><h1>${title}</h1><p>${description}</p></div>${action}</div>`;
+  const heading = (title, description, action = "") => `<div class="page-heading"><div><span class="eyebrow">CATAT UANGMU</span><h1>${title}</h1><p>${description}</p></div>${action}</div>`;
   const empty = (icon, title, description) => `<div class="empty-state"><span><i data-lucide="${icon}"></i></span><strong>${title}</strong><p>${description}</p></div>`;
   const summaryCard = (title, value, icon, tone = "", detail = "") => `<article class="summary-card ${tone === "balance" ? "balance-card" : ""}"><div class="summary-top">${title}<span class="summary-icon ${tone}"><i data-lucide="${icon}"></i></span></div><h2 class="${tone === "income" ? "income-text" : tone === "expense" ? "expense-text" : ""}">${fmt(value)}</h2>${detail ? `<div class="subdued">${detail}</div>` : ""}</article>`;
   const countCard = (title, value, icon) => `<article class="summary-card"><div class="summary-top">${title}<span class="summary-icon"><i data-lucide="${icon}"></i></span></div><h2>${value}</h2></article>`;
