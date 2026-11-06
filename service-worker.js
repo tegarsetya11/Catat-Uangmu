@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "catat-uangmu-v5";
+const CACHE_NAME = "catat-uangmu-v6";
 const CORE_FILES = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const CORE_FILES = [
   "./catat-uangmu-logo.png",
   "./catat-uangmu-logo-192.png",
   "./catat-uangmu-logo-512.png",
+  "./developer-photo.jpg",
   "./search-illustration.png"
 ];
 

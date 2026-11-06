@@ -28,7 +28,7 @@ jobs:
       - name: Prepare site
         run: |
           mkdir dist
-          cp index.html app.js styles.css manifest.webmanifest service-worker.js catat-uangmu-logo.png catat-uangmu-logo-192.png catat-uangmu-logo-512.png search-illustration.png dist/
+          cp index.html app.js styles.css manifest.webmanifest service-worker.js catat-uangmu-logo.png catat-uangmu-logo-192.png catat-uangmu-logo-512.png developer-photo.jpg search-illustration.png dist/
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
         with:

@@ -277,7 +277,7 @@
   function renderAppInfo() {
     return `${heading("Informasi Aplikasi","Tentang Catat Uangmu, pengembang, dan cara data Anda dikelola.")}
       <section class="app-info-developer">
-        <div class="app-info-portrait" aria-hidden="true">T</div>
+        <img class="app-info-portrait" src="developer-photo.jpg" alt="Foto Tegar Setya Andiputra">
         <div class="app-info-developer-copy">
           <span class="eyebrow">PROFIL DEVELOPER</span>
           <h2>Tegar Setya Andiputra</h2>
