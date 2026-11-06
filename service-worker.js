@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "catat-uangmu-v6";
+const CACHE_NAME = "catat-uangmu-v7";
 const CORE_FILES = [
   "./",
   "./index.html",

@@ -277,7 +277,10 @@
   function renderAppInfo() {
     return `${heading("Informasi Aplikasi","Tentang Catat Uangmu, pengembang, dan cara data Anda dikelola.")}
       <section class="app-info-developer">
-        <img class="app-info-portrait" src="developer-photo.jpg" alt="Foto Tegar Setya Andiputra">
+        <div class="app-info-brandmarks">
+          <img class="app-info-portrait" src="developer-photo.jpg" alt="Foto Tegar Setya Andiputra">
+          <div class="app-info-logo"><img src="catat-uangmu-logo-192.png" alt="Logo Catat Uangmu"></div>
+        </div>
         <div class="app-info-developer-copy">
           <span class="eyebrow">PROFIL DEVELOPER</span>
           <h2>Tegar Setya Andiputra</h2>
@@ -285,7 +288,6 @@
           <a class="button button-primary" href="https://tegar-setya-andiputra-portofolio.vercel.app/" target="_blank" rel="noopener noreferrer">Lihat Portofolio Developer <i data-lucide="external-link"></i></a>
           <blockquote>“Membangun solusi digital yang bermanfaat dan mudah digunakan.”</blockquote>
         </div>
-        <div class="app-info-logo"><img src="catat-uangmu-logo-192.png" alt="Logo Catat Uangmu"></div>
       </section>
       <div class="panel app-info-content">
         <section class="settings-section">
