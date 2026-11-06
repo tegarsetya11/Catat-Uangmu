@@ -6,6 +6,10 @@ Aplikasi pembukuan pribadi berbasis HTML, CSS, dan JavaScript tanpa backend.
 
 Buka `index.html` langsung di browser modern. Data tersimpan di `localStorage` browser pada perangkat yang sama; buat cadangan JSON secara berkala melalui menu **Cadangkan data**.
 
+## Memasang di Android
+
+Buka situs Catat Uangmu melalui Chrome Android, lalu tekan **Instal aplikasi** pada menu samping. Pemasangan PWA membutuhkan situs HTTPS. Aplikasi dapat dibuka kembali dari layar utama dan aset intinya tersedia saat offline.
+
 ## Fitur
 
 - Pemasukan, pengeluaran, saldo per akun, edit, pencarian, filter periode, serta tempat sampah transaksi.

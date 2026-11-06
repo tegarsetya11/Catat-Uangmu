@@ -50,6 +50,7 @@
   let transactionItems = [];
   let transactionReceipt = "";
   let unlocked = true;
+  let deferredInstallPrompt = null;
 
   function loadState() {
     try {
@@ -63,7 +64,7 @@
       needsUserName = !loaded.settings.userName?.trim();
       return loaded;
     } catch (error) {
-      console.error("Gagal membaca data Catatan Keuangan:", error);
+      console.error("Gagal membaca data Catat Uangmu:", error);
       needsUserName = true;
       return defaults();
     }
@@ -591,6 +592,7 @@
         delete state.settings.profilePhoto;
         persist("Foto profil berhasil dihapus.");
         break;
+      case "install-app":installApp();break;
       case "add-income":transactionForm("income");break;
       case "add-expense":transactionForm("expense");break;
       case "add-account":accountForm();break;
@@ -792,6 +794,35 @@
   document.getElementById("menu-toggle").addEventListener("click",()=>document.getElementById("sidebar").classList.toggle("open"));
   document.getElementById("sidebar-close").addEventListener("click",()=>document.getElementById("sidebar").classList.remove("open"));
   document.getElementById("modal-layer").addEventListener("click",event=>{if(event.target.getAttribute("id")==="modal-layer"&&unlocked&&!needsUserName){if(timePickerForm)restoreTimePickerForm();else closeModal();}});
+  window.addEventListener("beforeinstallprompt",event=>{
+    event.preventDefault();
+    deferredInstallPrompt=event;
+  });
+  window.addEventListener("appinstalled",()=>{
+    deferredInstallPrompt=null;
+    notify("Catat Uangmu berhasil dipasang.");
+  });
+  async function installApp() {
+    if(deferredInstallPrompt){
+      const promptEvent=deferredInstallPrompt;
+      deferredInstallPrompt=null;
+      await promptEvent.prompt();
+      const choice=await promptEvent.userChoice;
+      if(choice.outcome==="accepted")notify("Proses pemasangan Catat Uangmu dimulai.");
+      return;
+    }
+    if(window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone){
+      notify("Catat Uangmu sudah terpasang.");
+      return;
+    }
+    notify("Untuk memasang aplikasi, buka situs Catat Uangmu melalui Chrome Android, lalu pilih menu ⋮ > Instal aplikasi.");
+  }
+  if("serviceWorker" in navigator&&(location.protocol==="https:"||["localhost","127.0.0.1"].includes(location.hostname))){
+    navigator.serviceWorker.register("./service-worker.js").catch(error=>{
+      console.error("Service worker Catat Uangmu gagal didaftarkan:",error);
+      notify("Fitur offline aplikasi tidak dapat diaktifkan.",true);
+    });
+  }
   window.addEventListener("resize",()=>{if(page==="reports"||page==="all-reports")drawChart();});
   updateBrand();updateTrashCount();render();
   if(needsUserName)promptForUserName();

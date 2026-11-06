@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Catat Uangmu",
+  "short_name": "Catat Uangmu",
+  "description": "Aplikasi pembukuan pribadi untuk mencatat pemasukan dan pengeluaran.",
+  "lang": "id-ID",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#1769e0",
+  "icons": [
+    {
+      "src": "catat-uangmu-logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "catat-uangmu-logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
