@@ -649,7 +649,7 @@
     renderTimePicker();
   }
   function promptForUserName() {
-    openModal("Selamat datang di Catat Uangmu", "Pilih cara menyimpan data Anda. Login Google opsional.", `<div class="welcome-options"><button class="button button-primary welcome-google" type="button" data-action="google-sign-in"><img src="google-logo.png" alt="" class="google-logo"> Login dengan Google</button><button class="button button-outline welcome-local" type="button" data-action="continue-without-account">Lanjut tanpa akun</button><p class="muted">Dengan Google, data dapat disinkronkan ke perangkat lain. Tanpa login, data hanya tersimpan di browser ini.</p></div>`);
+    openModal("Selamat datang di Catat Uangmu", "Pilih cara menyimpan data Anda.", `<div class="welcome-options"><button class="button button-primary welcome-google" type="button" data-action="google-sign-in"><img src="google-logo.png" alt="" class="google-logo"> Login dengan Google</button><button class="button button-outline welcome-local" type="button" data-action="continue-without-account">Lanjut tanpa akun</button><p class="muted">Dengan Google, data dapat disinkronkan ke perangkat lain. Tanpa login, data hanya tersimpan di browser ini.</p></div>`);
     document.querySelector("#modal .modal-close")?.remove();
   }
   function promptForProfile() {
