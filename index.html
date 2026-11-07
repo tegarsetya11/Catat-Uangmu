@@ -17,6 +17,9 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -48,7 +51,7 @@
           <button class="button button-outline" data-action="export-pdf"><i data-lucide="file-text"></i> PDF</button>
         </div>
       </section>
-      <div class="sidebar-foot"><span class="status-dot"></span> Data tersimpan di perangkat ini</div>
+      <div class="sidebar-foot"><span class="status-dot"></span> <span id="storage-status">Data tersimpan di perangkat ini</span></div>
       <button class="button button-primary install-app-button" id="install-app" type="button" data-action="install-app"><i data-lucide="download"></i> Instal aplikasi Android</button>
     </aside>
     <main class="main-area">

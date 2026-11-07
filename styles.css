@@ -22,6 +22,20 @@
 .time-picker-button{display:flex;align-items:center;justify-content:space-between;text-align:left;color:var(--text);background:var(--surface)}.time-picker-button svg{width:17px;height:17px;color:var(--blue)}.clock-picker{display:grid;gap:14px}.clock-display{min-height:84px;display:flex;align-items:center;justify-content:center;gap:3px;padding:12px;background:#168fe8;border-radius:10px;color:#fff;font-size:42px;font-weight:500}.clock-display>button{padding:0 3px;border:0;border-radius:5px;background:transparent;color:#ffffffa8;font-size:inherit}.clock-display>button.active{color:#fff}.clock-meridiem{display:grid;margin-left:10px;gap:2px}.clock-meridiem button{padding:2px 5px;border:0;border-radius:4px;background:transparent;color:#ffffffa8;font-size:12px}.clock-meridiem button.active{background:#ffffff35;color:#fff}.clock-face{position:relative;width:min(100%,300px);aspect-ratio:1;margin:0 auto;border-radius:50%;background:#eeeeee;touch-action:manipulation}.clock-minute-tick{position:absolute;width:2px;height:2px;transform:translate(-50%,-50%);border-radius:50%;background:#aeb3b7;pointer-events:none}.clock-dial-number{position:absolute;z-index:1;display:grid;place-items:center;width:38px;height:38px;padding:0;transform:translate(-50%,-50%);border:0;border-radius:50%;background:transparent;color:#20242a;font-size:16px}.clock-dial-number.inner{width:32px;height:32px;color:#70757a;font-size:13px}.clock-dial-number.selected{background:#168fe8;color:#fff}.clock-hand{position:absolute;z-index:0;left:50%;top:50%;width:var(--hand-length);height:2px;transform:rotate(calc(var(--hand-angle) - 90deg));transform-origin:left center;background:#168fe8}.clock-center{position:absolute;z-index:2;left:50%;top:50%;width:10px;height:10px;transform:translate(-50%,-50%);border-radius:50%;background:#168fe8}.clock-picker .modal-actions{margin-top:0}
 @media(max-width:480px){.clock-display{min-height:70px;font-size:36px}.clock-face{width:min(100%,270px)}.clock-dial-number{width:34px;height:34px;font-size:14px}.clock-dial-number.inner{width:28px;height:28px;font-size:12px}}
 .settings-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.welcome-options{display:grid;gap:11px}
+.welcome-options .button{width:100%;min-height:42px}
+.welcome-google{font-size:12px}
+.google-logo{width:20px;height:20px;object-fit:contain}
+.welcome-local{font-size:11px}
+.welcome-options .muted{margin:4px 0 0;text-align:center;font-size:10px;line-height:1.6}
+.cloud-account{font-size:11px;font-weight:700}
+.cloud-status,.cloud-help{font-size:10px;line-height:1.6}
+.cloud-status{color:var(--blue)}
+.transaction-attachment{display:flex;align-items:center;margin-top:5px;color:#526078}
+.transaction-attachment svg{width:14px;height:14px;stroke-width:2}
+.transaction-icon.income,.transaction-icon.expense{background:transparent}
+.transaction-icon .transaction-flow-icon{width:26px;height:26px}
+.calendar-weekday.sunday,.calendar-day.sunday{color:#dc2626}
 .settings-actions .settings-back-button{background:#fed113;border-color:#fed113;color:#503b00}
 .settings-actions .settings-back-button:hover{background:#fed113}
 .settings-profile-photo{display:flex;align-items:center;gap:14px;padding:8px 0 16px}
@@ -48,6 +62,7 @@
 .app-info-developer-copy h2,.app-info-contact h2,.app-info-content h2{margin:0 0 7px;font-family:"Plus Jakarta Sans",sans-serif;font-size:18px;letter-spacing:-.3px}
 .app-info-developer-copy p,.app-info-contact p,.app-info-content p{margin:0 0 12px;color:var(--muted);font-size:10px;line-height:1.8}
 .app-info-developer-copy .button svg,.app-info-contact .button svg{width:13px;height:13px}
+.app-info-developer-copy>a.button,.app-info-contact>a.button{text-decoration:none}
 .app-info-developer-copy blockquote{margin:10px 0 0;color:var(--muted);font-size:10px;font-style:italic;line-height:1.6}
 .app-info-content .settings-section h2{font-size:17px}
 .app-info-list{display:grid;gap:9px;margin:12px 0 0;padding-left:18px;color:var(--muted);font-size:10px;line-height:1.8}
@@ -84,4 +99,10 @@
 .items-editor-footer{margin:9px 0;font-size:12px}
 .transaction-detail-items,.receipt-detail{margin:12px 0}
 .receipt-detail img{display:block;width:100%;max-height:300px;margin-top:8px;border-radius:8px;object-fit:contain;background:var(--bg)}
+.receipt-detail img[role="button"]{cursor:zoom-in}
+.receipt-image-viewer{position:relative;display:flex;align-items:center;justify-content:center;width:min(96vw,1100px);max-width:96vw;max-height:94vh;min-height:180px;padding:42px 12px 12px;background:#111;border-radius:12px}
+.receipt-image-viewer>img{display:block;max-width:100%;max-height:calc(94vh - 60px);object-fit:contain}
+.receipt-image-title{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.receipt-image-close{position:absolute;top:8px;right:8px;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#ffffff20;color:#fff}
+.receipt-image-close svg{width:20px;height:20px}
 @media(max-width:480px){.transaction-layout{grid-template-columns:1fr;gap:11px;max-height:60vh}.transaction-type-tabs,.transaction-account,.transaction-amount,.transaction-note,.transaction-name,.transaction-tools,#receipt-preview{grid-column:1}.transaction-datetime{grid-template-columns:1fr 1fr}.transaction-form-footer{flex-wrap:wrap}.transaction-form-footer button{flex:1 1 40%}.item-editor-row{grid-template-columns:minmax(0,1fr) 52px minmax(75px,.7fr) 30px;gap:5px}.item-editor-row .field-input{padding:8px 5px;font-size:10px}.settings-actions{align-items:stretch}.settings-actions .button{flex:1}}

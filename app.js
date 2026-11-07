@@ -3,6 +3,16 @@
 
   const STORAGE_KEY = "catatan-keuangan-v1";
   const APP_NAME = "Catat Uangmu";
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDknse_blKn8gNfobTLM-0KUHvR2DDPETM",
+    authDomain: "catat-uangmu-c7334.firebaseapp.com",
+    projectId: "catat-uangmu-c7334",
+    storageBucket: "catat-uangmu-c7334.firebasestorage.app",
+    messagingSenderId: "24997008340",
+    appId: "1:24997008340:web:80cfada217860b3594bc41",
+    measurementId: "G-EGP5G3V0L9"
+  };
+  const CLOUD_DOCUMENT_LIMIT = 850 * 1024;
   const currency = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
   const today = () => {
     const now = new Date();
@@ -41,6 +51,7 @@
   let calcPending = null;
   let calcStored = null;
   let calcJustEvaluated = false;
+  let calcWaitingForOperand = false;
   let timePickerTarget = "";
   let timePickerForm = "";
   let timePickerFormClass = "";
@@ -49,8 +60,16 @@
   let timePickerFormValues = {};
   let transactionItems = [];
   let transactionReceipt = "";
+  let receiptViewerPrevious = null;
   let unlocked = true;
   let deferredInstallPrompt = null;
+  let cloudAuth = null;
+  let cloudDb = null;
+  let cloudUser = null;
+  let cloudUnsubscribe = null;
+  let cloudWriteTimer = null;
+  let connectedCloudUid = "";
+  let cloudSyncStatus = "Data hanya tersimpan di perangkat ini.";
 
   function loadState() {
     try {
@@ -72,6 +91,7 @@
   function persist(message) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
     catch (error) { notify(`Data tidak dapat disimpan: ${error.message}`, true); throw error; }
+    scheduleCloudSave();
     updateBrand();
     updateTrashCount();
     render();
@@ -163,13 +183,182 @@
     document.getElementById("toast-region").append(toast);
     setTimeout(() => toast.remove(), 3200);
   }
+  function setCloudStatus(message) {
+    cloudSyncStatus = message;
+    const status = document.getElementById("cloud-sync-status");
+    if (status) status.textContent = message;
+    const sidebarStatus = document.getElementById("storage-status");
+    if (sidebarStatus) sidebarStatus.textContent = cloudUser ? message : "Data tersimpan di perangkat ini";
+  }
+  function cloudSafeState(data) {
+    const serialized = JSON.stringify(data);
+    if (new TextEncoder().encode(serialized).length > CLOUD_DOCUMENT_LIMIT) {
+      throw new Error("Data terlalu besar untuk satu dokumen cloud. Hapus foto bukti transaksi atau foto profil, lalu coba lagi; data lokal tetap tersimpan.");
+    }
+    return JSON.parse(serialized);
+  }
+  async function writeCloudDocument(document, data) {
+    await document.set({ state: cloudSafeState(data), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+  }
+  function cloudDocument() {
+    if (!cloudUser || !cloudDb) throw new Error("Akun Google belum terhubung.");
+    return cloudDb.collection("users").doc(cloudUser.uid).collection("appData").doc("current");
+  }
+  function persistCloudState(data) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+    catch (error) { notify(`Data dari cloud tidak dapat disimpan di perangkat ini: ${error.message}`, true); throw error; }
+    state = data;
+    needsUserName = !state.settings.userName?.trim();
+    updateBrand();
+    updateTrashCount();
+    render();
+  }
+  function scheduleCloudSave() {
+    if (!cloudUser || !cloudDb || !connectedCloudUid) return;
+    clearTimeout(cloudWriteTimer);
+    setCloudStatus("Menyinkronkan perubahan...");
+    cloudWriteTimer = setTimeout(async () => {
+      if (!cloudUser || cloudUser.uid !== connectedCloudUid) return;
+      try {
+        await writeCloudDocument(cloudDocument(), state);
+        setCloudStatus(`Tersinkron ke ${cloudUser.email || "akun Google"}.`);
+      } catch (error) {
+        console.error("Gagal menyinkronkan data Catat Uangmu:", error);
+        setCloudStatus("Sinkronisasi gagal; data lokal tetap tersimpan.");
+        notify(`Sinkronisasi cloud gagal: ${error.message}`, true);
+      }
+    }, 500);
+  }
+  function isValidCloudState(data) {
+    return Boolean(data && validateBackup({ ...data, format: "catatan-keuangan-backup-v1" }));
+  }
+  async function beginCloudSync(user) {
+    if (!cloudDb || !user) return;
+    connectedCloudUid = user.uid;
+    setCloudStatus("Memeriksa data akun Google...");
+    try {
+      const document = cloudDb.collection("users").doc(user.uid).collection("appData").doc("current");
+      const snapshot = await document.get();
+      if (cloudUser?.uid !== user.uid) return;
+      if (snapshot.exists) {
+        const remoteState = snapshot.data()?.state;
+        if (!isValidCloudState(remoteState)) throw new Error("Format data cloud tidak valid. Data lokal tidak diubah.");
+        const useCloud = window.confirm("Data Catat Uangmu ditemukan di akun Google.\n\nPilih OK untuk mengganti data di perangkat ini dengan data cloud.\nPilih Batal untuk mempertahankan data di perangkat ini dan mengunggahnya sebagai pengganti data cloud.");
+        if (useCloud) {
+          persistCloudState(remoteState);
+        } else {
+          const confirmUpload = window.confirm("Unggah data lokal ini dan ganti data yang saat ini tersimpan di akun Google?");
+          if (!confirmUpload) {
+            connectedCloudUid = "";
+            await cloudAuth.signOut();
+            return;
+          }
+          await writeCloudDocument(document, state);
+        }
+      } else {
+        const uploadLocal = window.confirm("Belum ada data Catat Uangmu di akun Google ini.\n\nUnggah data lokal perangkat ini agar bisa dipakai di perangkat lain?");
+        if (!uploadLocal) {
+          connectedCloudUid = "";
+          await cloudAuth.signOut();
+          return;
+        }
+        await writeCloudDocument(document, state);
+      }
+      if (cloudUser?.uid !== user.uid) return;
+      cloudUnsubscribe?.();
+      cloudUnsubscribe = document.onSnapshot(snapshot => {
+        if (!snapshot.exists || snapshot.metadata.hasPendingWrites || cloudUser?.uid !== user.uid) return;
+        const remoteState = snapshot.data()?.state;
+        if (!isValidCloudState(remoteState)) {
+          setCloudStatus("Data cloud tidak valid; perubahan lokal dipertahankan.");
+          notify("Data cloud tidak valid. Data di perangkat ini tidak diubah.", true);
+          return;
+        }
+        if (JSON.stringify(remoteState) !== JSON.stringify(state)) {
+          try { persistCloudState(remoteState); }
+          catch (error) { console.error("Gagal menerapkan data cloud:", error); }
+        }
+        setCloudStatus(`Tersinkron ke ${user.email || "akun Google"}.`);
+      }, error => {
+        console.error("Gagal mendengarkan perubahan cloud:", error);
+        setCloudStatus("Koneksi cloud terputus; data lokal tetap tersimpan.");
+        notify(`Koneksi cloud gagal: ${error.message}`, true);
+      });
+      setCloudStatus(`Tersinkron ke ${user.email || "akun Google"}.`);
+      if (page === "settings") render();
+    } catch (error) {
+      console.error("Gagal menghubungkan data Catat Uangmu ke cloud:", error);
+      connectedCloudUid = "";
+      setCloudStatus("Sinkronisasi gagal; data lokal tetap tersimpan.");
+      notify(`Sinkronisasi cloud gagal: ${error.message}`, true);
+      if (page === "settings") render();
+    }
+  }
+  async function signInWithGoogle() {
+    if (!cloudAuth) {
+      notify("Layanan login Google belum tersedia. Periksa koneksi internet lalu muat ulang aplikasi.", true);
+      return;
+    }
+    try {
+      await cloudAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    } catch (error) {
+      console.error("Login Google Catat Uangmu gagal:", error);
+      notify(`Login Google gagal: ${error.message}`, true);
+    }
+  }
+  async function signOutGoogle() {
+    try { await cloudAuth?.signOut(); }
+    catch (error) {
+      console.error("Logout Google Catat Uangmu gagal:", error);
+      notify(`Logout Google gagal: ${error.message}`, true);
+    }
+  }
+  function initializeCloud() {
+    if (!window.firebase?.apps) {
+      setCloudStatus("Login Google tidak tersedia saat ini; data lokal tetap bisa digunakan.");
+      return;
+    }
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      cloudAuth = firebase.auth();
+      cloudDb = firebase.firestore();
+      cloudAuth.onAuthStateChanged(user => {
+        cloudUnsubscribe?.();
+        cloudUnsubscribe = null;
+        if (cloudWriteTimer) clearTimeout(cloudWriteTimer);
+        cloudUser = user;
+        connectedCloudUid = "";
+        if (user) {
+          if (needsUserName) {
+            state.settings.userName = user.displayName?.trim() || "Pengguna";
+            needsUserName = false;
+            persist();
+            closeModal();
+          }
+          setCloudStatus("Menghubungkan akun Google...");
+          beginCloudSync(user);
+        } else {
+          setCloudStatus("Data hanya tersimpan di perangkat ini.");
+          if (page === "settings") render();
+        }
+      }, error => {
+        console.error("Status login Google gagal dibaca:", error);
+        setCloudStatus("Status akun Google tidak dapat dimuat; data lokal tetap tersimpan.");
+        notify(`Login Google gagal dimuat: ${error.message}`, true);
+      });
+    } catch (error) {
+      console.error("Firebase gagal diinisialisasi:", error);
+      setCloudStatus("Firebase tidak dapat dimulai; data lokal tetap tersimpan.");
+      notify(`Firebase gagal diinisialisasi: ${error.message}`, true);
+    }
+  }
   function updateBrand() {
     document.title = APP_NAME;
     document.querySelectorAll(".brand-name").forEach(element => { element.textContent = APP_NAME; });
     const avatar=document.getElementById("user-avatar");
     if(state.settings.profilePhoto)avatar.innerHTML=`<img src="${esc(state.settings.profilePhoto)}" alt="">`;
     else avatar.textContent=(state.settings.userName||"N").trim().charAt(0).toUpperCase();
-    document.body.classList.toggle("dark-theme", state.settings.theme === "dark");
+    document.body.classList.remove("dark-theme");
   }
   function updateTrashCount() { document.getElementById("trash-count").textContent = state.trash.length || ""; }
   const pageTitles = { home: "Lihat Uangmu", reports: "Ringkasan", accounts: "Akun", "account-summary": "Ringkasan akun", transfers: "Transfer", "all-reports": "Laporan semua akun", categories: "Nama transaksi", notes: "Buku catatan", calendar: "Kalender", calculator: "Kalkulator kas", trash: "Transaksi dihapus", backup: "Cadangkan dan pulihkan", settings: "Pengaturan", "app-info": "Informasi Aplikasi" };
@@ -197,7 +386,11 @@
     const sign = incoming ? "+" : transfer ? "" : "−";
     const title = transfer ? `${accountName(tx.fromAccountId)} → ${accountName(tx.toAccountId)}` : tx.name;
     const meta = transfer ? `Transfer · ${formatTime(tx.time)}` : `${tx.category || (incoming ? "Pemasukan" : "Pengeluaran")} · ${formatTime(tx.time)} · ${accountName(tx.accountId)}`;
-    return `<div class="transaction-row" data-transaction="${esc(tx.id)}" tabindex="0" role="button" aria-label="${esc(title)} ${fmt(tx.amount)}"><span class="transaction-icon ${incoming ? "income" : transfer ? "" : "expense"}"><i data-lucide="${incoming ? "arrow-down-left" : transfer ? "arrow-left-right" : "arrow-up-right"}"></i></span><span class="transaction-copy"><strong>${esc(title)}</strong><span>${esc(meta)}</span></span><span class="transaction-money"><strong class="${incoming ? "income-text" : transfer ? "" : "expense-text"}">${sign}${fmt(tx.amount)}</strong><span>Saldo ${fmt(after)}</span></span></div>`;
+    const attachment = tx.receipt ? `<span class="transaction-attachment" aria-label="Memiliki lampiran"><i data-lucide="paperclip"></i></span>` : "";
+    const transactionIcon = transfer
+      ? `<i data-lucide="arrow-left-right"></i>`
+      : `<svg class="transaction-flow-icon" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="currentColor"></circle><path d="${incoming ? "M20 10v20M10 20l10 10 10-10" : "M20 30V10M10 20l10-10 10 10"}" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+    return `<div class="transaction-row" data-transaction="${esc(tx.id)}" tabindex="0" role="button" aria-label="${esc(title)} ${fmt(tx.amount)}${tx.receipt ? ", memiliki lampiran" : ""}"><span class="transaction-icon ${incoming ? "income" : transfer ? "" : "expense"}">${transactionIcon}</span><span class="transaction-copy"><strong>${esc(title)}</strong><span>${esc(meta)}</span>${attachment}</span><span class="transaction-money"><strong class="${incoming ? "income-text" : transfer ? "" : "expense-text"}">${sign}${fmt(tx.amount)}</strong><span>Saldo ${fmt(after)}</span></span></div>`;
   }
   function renderHome() {
     const query = searchTerm.trim().toLocaleLowerCase();
@@ -260,10 +453,10 @@
       const iso=`${cellDate.getFullYear()}-${String(cellDate.getMonth()+1).padStart(2,"0")}-${String(cellDate.getDate()).padStart(2,"0")}`;
       const isOutsideMonth=cellDate.getMonth()!==month;
       const txs=activeTransactions().filter(t=>t.date===iso),inc=txs.some(t=>t.type==="income"),exp=txs.some(t=>t.type==="expense");
-      return `<button class="calendar-day ${isOutsideMonth?"muted":""} ${iso===selectedDate?"selected":""} ${inc?"has-income":""} ${exp?"has-expense":""}" data-date="${iso}">${cellDate.getDate()}</button>`;
+      return `<button class="calendar-day ${cellDate.getDay()===0?"sunday":""} ${isOutsideMonth?"muted":""} ${iso===selectedDate?"selected":""} ${inc?"has-income":""} ${exp?"has-expense":""}" data-date="${iso}">${cellDate.getDate()}</button>`;
     }).join("");
     const selected=sortedTransactions(state.transactions.filter(t=>t.date===selectedDate));
-    return `${heading("Kalender aktivitas","Jelajahi transaksi berdasarkan tanggal.")}<div class="calendar-layout"><div class="panel"><div class="calendar-head"><button data-action="calendar-prev" aria-label="Bulan sebelumnya">‹</button><strong>${new Intl.DateTimeFormat("id-ID",{month:"long",year:"numeric"}).format(calendarMonth)}</strong><button data-action="calendar-next" aria-label="Bulan berikutnya">›</button></div><div class="calendar-grid">${["Sen","Sel","Rab","Kam","Jum","Sab","Min"].map(d=>`<div class="calendar-weekday">${d}</div>`).join("")}${cells}</div><hr class="divider"><div class="muted" style="font-size:9px"><span class="income-text">● Pemasukan</span> &nbsp; <span class="expense-text">● Pengeluaran</span></div></div><div class="panel"><div class="panel-header"><h2>${formatDate(selectedDate,{day:"2-digit",month:"long",year:"numeric"})}</h2></div>${selected.map(tx=>transactionRow(tx)).join("")||empty("calendar-days","Tidak ada transaksi","Belum ada aktivitas pada tanggal ini.")}</div></div>`;
+    return `${heading("Kalender aktivitas","Jelajahi transaksi berdasarkan tanggal.")}<div class="calendar-layout"><div class="panel"><div class="calendar-head"><button data-action="calendar-prev" aria-label="Bulan sebelumnya">‹</button><strong>${new Intl.DateTimeFormat("id-ID",{month:"long",year:"numeric"}).format(calendarMonth)}</strong><button data-action="calendar-next" aria-label="Bulan berikutnya">›</button></div><div class="calendar-grid">${["Sen","Sel","Rab","Kam","Jum","Sab","Min"].map((d,index)=>`<div class="calendar-weekday ${index===6?"sunday":""}">${d}</div>`).join("")}${cells}</div><hr class="divider"><div class="muted" style="font-size:9px"><span class="income-text">● Pemasukan</span> &nbsp; <span class="expense-text">● Pengeluaran</span></div></div><div class="panel"><div class="panel-header"><h2>${formatDate(selectedDate,{day:"2-digit",month:"long",year:"numeric"})}</h2></div>${selected.map(tx=>transactionRow(tx)).join("")||empty("calendar-days","Tidak ada transaksi","Belum ada aktivitas pada tanggal ini.")}</div></div>`;
   }
   function renderCalculator() {
     return `${heading("Kalkulator kas","Gunakan kalkulator untuk perhitungan.")}<div class="calc-layout"><div class="panel"><div class="panel-header"><h2>Kalkulator</h2></div><div class="calc-display" id="calc-display">${esc(calcValue)}</div><div class="calc-grid">${["C","±","%","÷","7","8","9","×","4","5","6","−","1","2","3","+","0",".","="].map(key=>`<button class="calc-key ${["÷","×","−","+","="].includes(key)?"op ":""}${key==="="?"equal ":""}${key==="0"?"zero-key":""}" data-calc="${key}">${key}</button>`).join("")}</div></div></div>`;
@@ -279,7 +472,7 @@
       <section class="app-info-developer">
         <div class="app-info-brandmarks">
           <img class="app-info-portrait" src="developer-photo.jpg" alt="Foto Tegar Setya Andiputra">
-          <div class="app-info-logo"><img src="catat-uangmu-logo-192.png" alt="Logo Catat Uangmu"></div>
+          <div class="app-info-logo"><img src="tegar-logo-192.png" alt="Logo Tegar"></div>
         </div>
         <div class="app-info-developer-copy">
           <span class="eyebrow">PROFIL DEVELOPER</span>
@@ -296,7 +489,7 @@
           <p class="muted">Tentang Proyek: Aplikasi Catat Uangmu dibangun untuk membantu pengguna mencatat, memantau, dan mengelola pemasukan serta pengeluaran keuangan secara praktis, terstruktur, dan mudah diakses kapan saja.</p>
           <ul class="app-info-list">
             <li><strong>Fitur utama:</strong> Catat transaksi dan transfer, kelola beberapa akun, lihat laporan, simpan catatan, serta cadangkan dan pulihkan data.</li>
-            <li><strong>Penyimpanan data:</strong> Data disimpan secara lokal di browser pada perangkat ini dan tidak disinkronkan ke akun online. Gunakan menu Cadangkan data untuk memindahkan salinan ke perangkat lain.</li>
+            <li><strong>Penyimpanan data:</strong> Tanpa login, data disimpan lokal di browser. Login Google opsional menyinkronkan data melalui akun pribadi agar dapat dibuka di perangkat lain. Gunakan menu Cadangkan data untuk membuat salinan tambahan.</li>
             <li><strong>Penggunaan offline:</strong> Setelah aplikasi dibuka saat online, fitur inti dapat digunakan kembali tanpa koneksi internet. Beberapa aset eksternal mungkin memerlukan koneksi.</li>
           </ul>
         </section>
@@ -313,7 +506,43 @@
   }
   function renderSettings() {
     const profilePhoto=state.settings.profilePhoto;
-    return `${heading("Pengaturan","Sesuaikan aplikasi dengan preferensi Anda.")}<div class="panel"><section class="settings-section"><h3>Profil dan tampilan</h3><div class="settings-profile-photo"><div class="settings-profile-preview">${profilePhoto?`<img src="${esc(profilePhoto)}" alt="Foto profil">`:`<span>${esc((state.settings.userName||"N").trim().charAt(0).toUpperCase())}</span>`}</div><div class="settings-profile-actions"><label class="button button-outline" for="setting-profile-photo"><i data-lucide="camera"></i> ${profilePhoto?"Ganti foto profil":"Tambah foto profil"}<input id="setting-profile-photo" type="file" accept="image/*" hidden></label>${profilePhoto?`<button class="button button-ghost" type="button" data-action="remove-profile-photo">Hapus foto</button>`:""}</div></div><label class="settings-row"><span>Nama pengguna</span><input class="field-input" id="setting-user" value="${esc(state.settings.userName)}"></label><label class="settings-row"><span>Tema gelap</span><input class="switch" id="setting-theme" type="checkbox" ${state.settings.theme==="dark"?"checked":""}></label><label class="settings-row"><span>Format tanggal</span><select class="field-select" id="setting-date"><option value="id-ID" ${state.settings.dateFormat==="id-ID"?"selected":""}>Indonesia (DD/MM/YYYY)</option><option value="en-GB" ${state.settings.dateFormat==="en-GB"?"selected":""}>Internasional (DD/MM/YYYY)</option></select></label><label class="settings-row"><span>Format waktu</span><select class="field-select" id="setting-time"><option value="12h" ${state.settings.timeFormat==="12h"?"selected":""}>12 jam (AM/PM)</option><option value="24h" ${state.settings.timeFormat!=="12h"?"selected":""}>24 jam</option></select></label></section><section class="settings-section"><h3>Keamanan dasar</h3><div class="settings-row"><span>PIN pembuka (opsional)</span><div class="settings-pin-control"><input class="field-input" id="setting-pin" type="password" inputmode="numeric" maxlength="8" placeholder="Kosongkan untuk menonaktifkan" value="${esc(state.settings.pin||"")}"><button class="button button-danger" type="button" data-action="remove-pin" ${state.settings.pin?"":"disabled"}><i data-lucide="trash-2"></i> Hapus PIN</button></div></div><p class="muted" style="font-size:9px">PIN tersimpan secara lokal dan tidak mengenkripsi data browser.</p></section><section class="settings-section"><h3>Format dan pengelolaan</h3><div class="settings-row"><span>Mata uang</span><strong style="font-size:10px">Rupiah Indonesia (Rp)</strong></div><div class="settings-row"><span>Lokasi data</span><strong style="font-size:10px">Penyimpanan browser lokal</strong></div></section><div class="settings-actions"><button class="button button-primary" data-action="save-settings"><i data-lucide="save"></i> Simpan pengaturan</button><button class="button button-outline settings-back-button" data-page="home">Kembali lihat uangmu</button></div></div>`;
+    const cloudAccount = cloudUser ? `Terhubung sebagai ${esc(cloudUser.email || "akun Google")}` : "Belum terhubung — data tetap disimpan di perangkat ini.";
+    const cloudButton = cloudUser
+      ? `<button class="button button-outline" data-action="google-sign-out"><i data-lucide="log-out"></i> Keluar dari Google</button>`
+      : `<button class="button button-primary" data-action="google-sign-in"><i data-lucide="user-round"></i> Login dengan Google (opsional)</button>`;
+    return `${heading("Pengaturan","Sesuaikan aplikasi dengan preferensi Anda.")}<div class="panel">
+      <section class="settings-section">
+        <h3>Sinkronisasi akun Google (opsional)</h3>
+        <p class="muted cloud-account">${cloudAccount}</p>
+        <p class="muted cloud-status" id="cloud-sync-status">${esc(cloudSyncStatus)}</p>
+        <div class="settings-actions">${cloudButton}</div>
+        <p class="muted cloud-help">Login untuk menyimpan data ke akun Google dan membukanya di perangkat lain. Tanpa login, data hanya tersimpan di browser ini. Perlu koneksi internet. Perangkat memakai salinan data yang sama; hindari mengubah data bersamaan di beberapa perangkat. Jangan gunakan akun bersama.</p>
+      </section>
+      <section class="settings-section">
+        <h3>Profil dan tampilan</h3>
+        <div class="settings-profile-photo">
+          <div class="settings-profile-preview">${profilePhoto?`<img src="${esc(profilePhoto)}" alt="Foto profil">`:`<span>${esc((state.settings.userName||"N").trim().charAt(0).toUpperCase())}</span>`}</div>
+          <div class="settings-profile-actions">
+            <label class="button button-outline" for="setting-profile-photo"><i data-lucide="camera"></i> ${profilePhoto?"Ganti foto profil":"Tambah foto profil"}<input id="setting-profile-photo" type="file" accept="image/*" hidden></label>
+            ${profilePhoto?`<button class="button button-ghost" type="button" data-action="remove-profile-photo">Hapus foto</button>`:""}
+          </div>
+        </div>
+        <label class="settings-row"><span>Nama pengguna</span><input class="field-input" id="setting-user" value="${esc(state.settings.userName)}"></label>
+        <label class="settings-row"><span>Format tanggal</span><select class="field-select" id="setting-date"><option value="id-ID" ${state.settings.dateFormat==="id-ID"?"selected":""}>Indonesia (DD/MM/YYYY)</option><option value="en-GB" ${state.settings.dateFormat==="en-GB"?"selected":""}>Internasional (DD/MM/YYYY)</option></select></label>
+        <label class="settings-row"><span>Format waktu</span><select class="field-select" id="setting-time"><option value="12h" ${state.settings.timeFormat==="12h"?"selected":""}>12 jam (AM/PM)</option><option value="24h" ${state.settings.timeFormat!=="12h"?"selected":""}>24 jam</option></select></label>
+      </section>
+      <section class="settings-section">
+        <h3>Keamanan dasar</h3>
+        <div class="settings-row"><span>PIN pembuka (opsional)</span><div class="settings-pin-control"><input class="field-input" id="setting-pin" type="password" inputmode="numeric" maxlength="8" placeholder="Kosongkan untuk menonaktifkan" value="${esc(state.settings.pin||"")}"><button class="button button-danger" type="button" data-action="remove-pin" ${state.settings.pin?"":"disabled"}><i data-lucide="trash-2"></i> Hapus PIN</button></div></div>
+        <p class="muted" style="font-size:9px">PIN tersimpan secara lokal dan tidak mengenkripsi data browser.</p>
+      </section>
+      <section class="settings-section">
+        <h3>Format dan pengelolaan</h3>
+        <div class="settings-row"><span>Mata uang</span><strong style="font-size:10px">Rupiah Indonesia (Rp)</strong></div>
+        <div class="settings-row"><span>Lokasi data</span><strong style="font-size:10px">Penyimpanan browser dan akun Google jika login</strong></div>
+      </section>
+      <div class="settings-actions"><button class="button button-primary" data-action="save-settings"><i data-lucide="save"></i> Simpan pengaturan</button><button class="button button-outline settings-back-button" data-page="home">Kembali lihat uangmu</button></div>
+    </div>`;
   }
   const renderers = { home: renderHome, reports: () => renderReports(false), accounts: renderAccounts, "account-summary": renderAccountSummary, transfers: renderTransfers, "all-reports": () => renderReports(true), categories: renderCategories, notes: renderNotes, calendar: renderCalendar, calculator: renderCalculator, trash: renderTrash, backup: renderBackup, settings: renderSettings, "app-info": renderAppInfo };
 
@@ -330,6 +559,24 @@
     document.getElementById("modal-layer").setAttribute("aria-hidden","false");
     if(window.lucide)window.lucide.createIcons();
     modal.querySelector("input,select,textarea")?.focus();
+  }
+  function showReceiptImage(source) {
+    const modal = document.getElementById("modal");
+    receiptViewerPrevious = { html: modal.innerHTML, className: modal.className };
+    modal.className = "modal receipt-image-viewer";
+    modal.innerHTML = `<h2 id="modal-title" class="receipt-image-title">Bukti transaksi diperbesar</h2><button class="receipt-image-close" type="button" data-action="close-receipt-image" aria-label="Tutup foto"><i data-lucide="x"></i></button><img src="${esc(source)}" alt="Bukti transaksi diperbesar">`;
+    if (window.lucide) window.lucide.createIcons();
+    modal.querySelector(".receipt-image-close").focus();
+  }
+  function closeReceiptImage() {
+    if (!receiptViewerPrevious) return false;
+    const modal = document.getElementById("modal");
+    modal.className = receiptViewerPrevious.className;
+    modal.innerHTML = receiptViewerPrevious.html;
+    receiptViewerPrevious = null;
+    if (window.lucide) window.lucide.createIcons();
+    modal.querySelector(".receipt-detail img")?.focus();
+    return true;
   }
   function closeModal() { document.getElementById("modal-layer").classList.remove("open");document.getElementById("modal-layer").setAttribute("aria-hidden","true"); }
   function showTimePicker(inputId) {
@@ -402,6 +649,10 @@
     renderTimePicker();
   }
   function promptForUserName() {
+    openModal("Selamat datang di Catat Uangmu", "Pilih cara menyimpan data Anda. Login Google opsional.", `<div class="welcome-options"><button class="button button-primary welcome-google" type="button" data-action="google-sign-in"><img src="google-logo.png" alt="" class="google-logo"> Login dengan Google</button><button class="button button-outline welcome-local" type="button" data-action="continue-without-account">Lanjut tanpa akun</button><p class="muted">Dengan Google, data dapat disinkronkan ke perangkat lain. Tanpa login, data hanya tersimpan di browser ini.</p></div>`);
+    document.querySelector("#modal .modal-close")?.remove();
+  }
+  function promptForProfile() {
     openModal("Beri nama kamu", "Masukkan nama Anda untuk mulai menggunakan Catat Uangmu.", `<form id="onboarding-form"><label><span class="field-label">Nama pengguna</span><input class="field-input" name="userName" required maxlength="60" autocomplete="name" placeholder="Namamu"></label><label><span class="field-label">Nama catatan (akun)</span><input class="field-input" name="accountName" required maxlength="60" placeholder="Contoh: Uang Tunai" value="${esc(state.accounts[0]?.name||"")}"></label><div class="modal-actions"><button class="button button-primary">Mulai mencatat</button></div></form>`);
     document.querySelector("#modal .modal-close")?.remove();
   }
@@ -417,7 +668,7 @@
     const actualType=tx?.type||type;
     transactionItems=(tx?.items||[]).map(item=>({...item}));
     transactionReceipt=tx?.receipt||"";
-    openModal(id?"Edit transaksi":actualType==="income"?"Tambah pemasukan":"Tambah pengeluaran","Catat nominal dan detail transaksi.",`<form id="transaction-form"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="type" value="${actualType}"><div class="transaction-layout"><div class="transaction-type-tabs"><button type="button" class="transaction-type-tab income ${actualType==="income"?"active":""}" data-action="transaction-type" data-type="income">Kamu Menerima</button><button type="button" class="transaction-type-tab expense ${actualType==="expense"?"active":""}" data-action="transaction-type" data-type="expense">Kamu Membayar</button></div><label class="transaction-account"><span class="field-label">Akun</span><select class="field-select" name="accountId" required>${options(state.accounts,tx?.accountId)}</select></label><div class="transaction-datetime"><label class="form-field"><span class="field-label">Tanggal *</span><input class="field-input" type="date" name="date" required value="${esc(tx?.date||today())}"></label><label class="form-field"><span class="field-label">Jam *</span>${timeField("transaction-time",tx?.time)}</label></div><label class="transaction-amount"><span class="field-label transaction-amount-label">${actualType==="income"?"Kamu Menerima":"Kamu Membayar"} *</span><input class="field-input" name="amount" type="text" data-money-input inputmode="numeric" autocomplete="off" required placeholder="0" value="${tx?groupedInteger(tx.amount):""}"></label><label class="transaction-note"><span class="field-label">Nama transaksi atau catatan *</span><textarea class="field-textarea" name="note" maxlength="500" required placeholder="Catatan">${esc(tx?.note||"")}</textarea></label><label class="transaction-name"><span class="field-label">Nama transaksi (opsional)</span><input class="field-input" name="name" maxlength="80" placeholder="Contoh: Belanja bulanan" value="${esc(tx?.name||"")}"></label><div class="transaction-tools"><label class="transaction-tool"><i data-lucide="camera"></i><span>${transactionReceipt?"Bukti terlampir":"Tambah tagihan"}</span><input id="receipt-file" type="file" accept="image/*" capture="environment" hidden></label><button id="items-button" class="transaction-tool" type="button" data-action="open-items"><i data-lucide="list"></i><span>Tambah Barang${transactionItems.length?` (${transactionItems.length})`:""}</span></button></div><div id="receipt-preview">${renderReceiptPreviewMarkup()}</div></div><div id="transaction-items-panel" hidden></div><div class="transaction-form-footer"><button type="button" class="button button-outline" data-action="close-modal">Batal</button><button type="submit" class="button button-outline" data-continue="true">Simpan dan lanjutkan</button><button type="submit" class="button button-primary">Simpan dan keluar</button></div></form>`,true);
+    openModal(id?"Edit transaksi":actualType==="income"?"Tambah pemasukan":"Tambah pengeluaran","Catat nominal dan detail transaksi.",`<form id="transaction-form"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="type" value="${actualType}"><div class="transaction-layout"><div class="transaction-type-tabs"><button type="button" class="transaction-type-tab income ${actualType==="income"?"active":""}" data-action="transaction-type" data-type="income">Kamu Menerima</button><button type="button" class="transaction-type-tab expense ${actualType==="expense"?"active":""}" data-action="transaction-type" data-type="expense">Kamu Membayar</button></div><label class="transaction-account"><span class="field-label">Akun</span><select class="field-select" name="accountId" required>${options(state.accounts,tx?.accountId)}</select></label><div class="transaction-datetime"><label class="form-field"><span class="field-label">Tanggal *</span><input class="field-input" type="date" name="date" required value="${esc(tx?.date||today())}"></label><label class="form-field"><span class="field-label">Jam *</span>${timeField("transaction-time",tx?.time)}</label></div><label class="transaction-amount"><span class="field-label transaction-amount-label">${actualType==="income"?"Kamu Menerima":"Kamu Membayar"} *</span><input class="field-input" name="amount" type="text" data-money-input inputmode="numeric" autocomplete="off" required placeholder="0" value="${tx?groupedInteger(tx.amount):""}"></label><label class="transaction-name"><span class="field-label">Nama transaksi *</span><input class="field-input" name="name" maxlength="80" required placeholder="Contoh: Belanja bulanan" value="${esc(tx?.name||"")}"></label><label class="transaction-note"><span class="field-label">Catatan tambahan (opsional)</span><textarea class="field-textarea" name="note" maxlength="500" placeholder="Catatan">${esc(tx?.note||"")}</textarea></label><div class="transaction-tools"><label class="transaction-tool"><i data-lucide="camera"></i><span>${transactionReceipt?"Bukti terlampir":"Tambah tagihan"}</span><input id="receipt-file" type="file" accept="image/*" capture="environment" hidden></label><button id="items-button" class="transaction-tool" type="button" data-action="open-items"><i data-lucide="list"></i><span>Tambah Barang${transactionItems.length?` (${transactionItems.length})`:""}</span></button></div><div id="receipt-preview">${renderReceiptPreviewMarkup()}</div></div><div id="transaction-items-panel" hidden></div><div class="transaction-form-footer"><button type="button" class="button button-outline" data-action="close-modal">Batal</button><button type="submit" class="button button-outline" data-continue="true">Simpan dan lanjutkan</button><button type="submit" class="button button-primary">Simpan dan keluar</button></div></form>`,true);
   }
   function renderReceiptPreviewMarkup() {
     return transactionReceipt ? `<div class="receipt-preview"><img src="${transactionReceipt}" alt="Pratinjau bukti transaksi"><button class="button button-ghost" type="button" data-action="remove-receipt">Hapus bukti</button></div>` : "";
@@ -475,7 +726,7 @@
     const tx=state.transactions.find(t=>t.id===id);if(!tx)return;
     const typeLabel=tx.type==="income"?"Pemasukan":tx.type==="expense"?"Pengeluaran":"Transfer";
     const items=Array.isArray(tx.items)&&tx.items.length?`<div class="transaction-detail-items"><strong>Barang</strong>${tx.items.map(item=>`<div><span>${esc(item.name)} × ${item.quantity}</span><span>${fmt(item.quantity*item.price)}</span></div>`).join("")}</div>`:"";
-    const receipt=tx.receipt?`<div class="receipt-detail"><strong>Bukti transaksi</strong><img src="${esc(tx.receipt)}" alt="Bukti transaksi"></div>`:"";
+    const receipt=tx.receipt?`<div class="receipt-detail"><strong>Bukti transaksi</strong><img src="${esc(tx.receipt)}" alt="Bukti transaksi. Tekan untuk memperbesar." role="button" tabindex="0" data-action="view-receipt"></div>`:"";
     openModal("Detail transaksi",`${typeLabel} · ${formatDate(tx.date,{day:"2-digit",month:"long",year:"numeric"})}`,`<div class="account-mini"><span class="account-mini-copy"><strong>${esc(tx.name||"Transfer antar akun")}</strong><span>${esc(tx.category||typeLabel)} · ${esc(formatTime(tx.time))}</span></span><strong class="${tx.type==="income"?"income-text":tx.type==="expense"?"expense-text":""}">${fmt(tx.amount)}</strong></div><div class="account-mini"><span class="account-mini-copy"><strong>${tx.type==="transfer"?"Dari akun":"Akun"}</strong></span><strong>${esc(accountName(tx.type==="transfer"?tx.fromAccountId:tx.accountId))}</strong></div>${tx.type==="transfer"?`<div class="account-mini"><span class="account-mini-copy"><strong>Ke akun</strong></span><strong>${esc(accountName(tx.toAccountId))}</strong></div>`:""}<div class="account-mini"><span class="account-mini-copy"><strong>Saldo setelah transaksi</strong></span><strong>${fmt(balancesAfter()[tx.id])}</strong></div>${tx.note?`<p class="muted" style="font-size:10px;line-height:1.6">${esc(tx.note)}</p>`:""}${items}${receipt}<div class="modal-actions"><button class="button button-danger" data-action="trash-transaction" data-id="${esc(tx.id)}"><i data-lucide="trash-2"></i> Hapus</button><button class="button button-outline" data-action="close-modal">Tutup</button><button class="button button-primary" data-action="${tx.type==="transfer"?"edit-transfer":"edit-transaction"}" data-id="${esc(tx.id)}"><i data-lucide="pencil"></i> Edit</button></div>`);
   }
   function exportRows() {
@@ -590,7 +841,9 @@
     const action=event.target.closest("[data-action]");if(!action)return;
     const id=action.dataset.id;
     switch(action.dataset.action){
-      case "close-modal":closeModal();break;
+      case "close-modal":if(!closeReceiptImage())closeModal();break;
+      case "view-receipt":showReceiptImage(action.src);break;
+      case "close-receipt-image":closeReceiptImage();break;
       case "open-time-picker":showTimePicker(action.dataset.timeInput);break;
       case "clock-stage-hour":timePickerStage="hour";renderTimePicker();break;
       case "clock-stage-minute":timePickerStage="minute";renderTimePicker();break;
@@ -631,6 +884,7 @@
         break;
       case "remove-pin":removePin();break;
       case "install-app":installApp();break;
+      case "continue-without-account":promptForProfile();break;
       case "add-income":transactionForm("income");break;
       case "add-expense":transactionForm("expense");break;
       case "add-account":accountForm();break;
@@ -651,6 +905,8 @@
       case "calendar-prev":calendarMonth.setMonth(calendarMonth.getMonth()-1);selectedDate=today();if(new Date(`${selectedDate}T00:00:00`).getMonth()!==calendarMonth.getMonth())selectedDate=`${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth()+1).padStart(2,"0")}-01`;render();break;
       case "calendar-next":calendarMonth.setMonth(calendarMonth.getMonth()+1);selectedDate=`${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth()+1).padStart(2,"0")}-01`;render();break;
       case "save-settings":saveSettings();break;
+      case "google-sign-in":signInWithGoogle();break;
+      case "google-sign-out":signOutGoogle();break;
       case "export-xlsx":exportXLSX();break;
       case "export-pdf":exportPDF();break;
       case "export-backup":exportBackup();break;
@@ -682,13 +938,12 @@
       const type=data.type,amount=parseMoneyInput(data.amount);
       if(!["income","expense"].includes(type)){notify("Pilih jenis transaksi yang valid.",true);return;}
       if(!document.getElementById("transaction-items-panel").hidden){notify("Simpan atau batalkan daftar barang terlebih dahulu.",true);return;}
-      if(!data.note.trim()){notify("Nama transaksi atau catatan wajib diisi.",true);form.elements.note.focus();return;}
+      if(!data.name.trim()){notify("Nama transaksi wajib diisi.",true);form.elements.name.focus();return;}
       if(!Number.isSafeInteger(amount)||amount<=0){notify("Nominal harus berupa angka Rupiah positif.",true);return;}
       if(!accountById(data.accountId)){notify("Pilih akun yang masih tersedia.",true);return;}
       if(!isValidISODate(data.date)||!isValidTime(data.time)){notify("Tanggal atau jam transaksi tidak valid.",true);return;}
       const existing=state.transactions.find(t=>t.id===data.id);
-      const itemName=transactionItems[0]?.name.trim();
-      const name=data.name.trim()||itemName||data.note.trim().slice(0,80)|| (type==="income"?"Pemasukan":"Pengeluaran");
+      const name=data.name.trim();
       const tx={id:data.id||makeId(),type,name,amount,accountId:data.accountId,date:data.date,time:data.time,note:data.note.trim(),...(transactionItems.length?{items:transactionItems.map(item=>({...item}))}:{}),...(transactionReceipt?{receipt:transactionReceipt}:{})};
       if(existing)state.transactions=state.transactions.map(t=>t.id===tx.id?tx:t);else state.transactions.push(tx);
       const continueAfterSave=event.submitter?.dataset.continue==="true";
@@ -760,7 +1015,7 @@
     const userName=document.getElementById("setting-user").value.trim(),pin=document.getElementById("setting-pin").value;
     if(!userName){notify("Nama pengguna wajib diisi.",true);return;}
     if(pin&&!/^\d{4,8}$/.test(pin)){notify("PIN harus terdiri dari 4 sampai 8 angka.",true);return;}
-    state.settings={...state.settings,userName,pin,theme:document.getElementById("setting-theme").checked?"dark":"light",dateFormat:document.getElementById("setting-date").value,timeFormat:document.getElementById("setting-time").value};persist("Pengaturan berhasil disimpan.");
+    state.settings={...state.settings,userName,pin,theme:"light",dateFormat:document.getElementById("setting-date").value,timeFormat:document.getElementById("setting-time").value};persist("Pengaturan berhasil disimpan.");
     if(pin)lockApp();
   }
   function removePin() {
@@ -776,22 +1031,24 @@
       if (operator === "×") return left * right;
       return right === 0 ? NaN : left / right;
     };
-    if(key==="C"){calcValue="0";calcPending=null;calcStored=null;calcJustEvaluated=false;}
+    if(key==="C"){calcValue="0";calcPending=null;calcStored=null;calcJustEvaluated=false;calcWaitingForOperand=false;}
     else if(key==="±"&&calcValue!=="Error"){calcValue=String(Number(calcValue)*-1);}
     else if(key==="%"&&calcValue!=="Error"){calcValue=String(Number(calcValue)/100);}
     else if(["+","−","×","÷"].includes(key)){
       if(calcValue==="Error"){calcValue="0";calcPending=null;calcStored=null;}
-      if(calcPending){
+      if(calcPending&&calcWaitingForOperand){
+        calcPending=key;
+      }else if(calcPending){
         const result=calculate(calcPending,calcStored,Number(calcValue));
-        if(!Number.isFinite(result)){calcValue="Error";calcPending=null;calcStored=null;}
-        else{calcValue=String(Number(result.toFixed(8)));calcStored=Number(calcValue);calcPending=key;calcValue="0";}
-      }else{calcPending=key;calcStored=Number(calcValue);calcValue="0";}
+        if(!Number.isFinite(result)){calcValue="Error";calcPending=null;calcStored=null;calcWaitingForOperand=false;}
+        else{calcValue=String(Number(result.toFixed(8)));calcStored=Number(calcValue);calcPending=key;calcValue="0";calcWaitingForOperand=true;}
+      }else{calcPending=key;calcStored=Number(calcValue);calcValue="0";calcWaitingForOperand=true;}
       calcJustEvaluated=false;
     }
-    else if(key==="="&&calcPending){const result=calculate(calcPending,calcStored,Number(calcValue));calcValue=Number.isFinite(result)?String(Number(result.toFixed(8))):"Error";calcPending=null;calcStored=null;calcJustEvaluated=true;}
-    else if(key==="."){if(calcJustEvaluated||calcValue==="Error")calcValue="0.";else if(!calcValue.includes("."))calcValue+=".";calcJustEvaluated=false;}
-    else if(/^\d$/.test(key)){calcValue=calcJustEvaluated||calcValue==="Error"||calcValue==="0"?key:calcValue.length<16?calcValue+key:calcValue;calcJustEvaluated=false;}
-    const display=document.getElementById("calc-display");if(display)display.textContent=calcValue;
+    else if(key==="="&&calcPending){const result=calculate(calcPending,calcStored,Number(calcValue));calcValue=Number.isFinite(result)?String(Number(result.toFixed(8))):"Error";calcPending=null;calcStored=null;calcJustEvaluated=true;calcWaitingForOperand=false;}
+    else if(key==="."){if(calcWaitingForOperand||calcJustEvaluated||calcValue==="Error")calcValue="0.";else if(!calcValue.includes("."))calcValue+=".";calcWaitingForOperand=false;calcJustEvaluated=false;}
+    else if(/^\d$/.test(key)){calcValue=calcWaitingForOperand||calcJustEvaluated||calcValue==="Error"||calcValue==="0"?key:calcValue.length<16?calcValue+key:calcValue;calcWaitingForOperand=false;calcJustEvaluated=false;}
+    const display=document.getElementById("calc-display");if(display)display.textContent=calcWaitingForOperand&&calcPending?calcPending:calcValue;
   }
   document.addEventListener("input",event=>{
     if(event.target.matches("[data-money-input]"))formatMoneyField(event.target);
@@ -831,13 +1088,14 @@
     }
   });
   document.addEventListener("keydown",event=>{
-    if(event.key==="Escape"&&unlocked&&!needsUserName){if(timePickerForm)restoreTimePickerForm();else closeModal();}
+    if(event.key==="Escape"&&unlocked&&!needsUserName){if(receiptViewerPrevious)closeReceiptImage();else if(timePickerForm)restoreTimePickerForm();else closeModal();}
     if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==="k"){event.preventDefault();document.getElementById("search-input").focus();}
     if(event.target.matches("[data-transaction]")&&(event.key==="Enter"||event.key===" ")){event.preventDefault();renderTransactionDetail(event.target.dataset.transaction);}
+    if(event.target.matches('[data-action="view-receipt"]')&&(event.key==="Enter"||event.key===" ")){event.preventDefault();showReceiptImage(event.target.src);}
   });
   document.getElementById("menu-toggle").addEventListener("click",()=>document.getElementById("sidebar").classList.toggle("open"));
   document.getElementById("sidebar-close").addEventListener("click",()=>document.getElementById("sidebar").classList.remove("open"));
-  document.getElementById("modal-layer").addEventListener("click",event=>{if(event.target.getAttribute("id")==="modal-layer"&&unlocked&&!needsUserName){if(timePickerForm)restoreTimePickerForm();else closeModal();}});
+  document.getElementById("modal-layer").addEventListener("click",event=>{if(event.target.getAttribute("id")==="modal-layer"&&unlocked&&!needsUserName){if(receiptViewerPrevious)closeReceiptImage();else if(timePickerForm)restoreTimePickerForm();else closeModal();}});
   window.addEventListener("beforeinstallprompt",event=>{
     event.preventDefault();
     deferredInstallPrompt=event;
@@ -868,7 +1126,7 @@
     });
   }
   window.addEventListener("resize",()=>{if(page==="reports"||page==="all-reports")drawChart();});
-  updateBrand();updateTrashCount();render();
+  updateBrand();updateTrashCount();render();initializeCloud();
   if(needsUserName)promptForUserName();
   else if(state.settings.pin)lockApp();
 })();
