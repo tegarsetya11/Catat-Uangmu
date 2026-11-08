@@ -106,3 +106,4 @@
 .receipt-image-close{position:absolute;top:8px;right:8px;display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:50%;background:#ffffff20;color:#fff}
 .receipt-image-close svg{width:20px;height:20px}
 @media(max-width:480px){.transaction-layout{grid-template-columns:1fr;gap:11px;max-height:60vh}.transaction-type-tabs,.transaction-account,.transaction-amount,.transaction-note,.transaction-name,.transaction-tools,#receipt-preview{grid-column:1}.transaction-datetime{grid-template-columns:1fr 1fr}.transaction-form-footer{flex-wrap:wrap}.transaction-form-footer button{flex:1 1 40%}.item-editor-row{grid-template-columns:minmax(0,1fr) 52px minmax(75px,.7fr) 30px;gap:5px}.item-editor-row .field-input{padding:8px 5px;font-size:10px}.settings-actions{align-items:stretch}.settings-actions .button{flex:1}}
+.group-date{padding:8px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--bg)}
