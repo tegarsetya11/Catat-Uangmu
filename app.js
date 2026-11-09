@@ -382,23 +382,25 @@
       : `<svg class="transaction-flow-icon" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="19" fill="currentColor"></circle><path d="${incoming ? "M20 10v20M10 20l10 10 10-10" : "M20 30V10M10 20l10-10 10 10"}" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
     return `<div class="transaction-row" data-transaction="${esc(tx.id)}" tabindex="0" role="button" aria-label="${esc(title)} ${fmt(tx.amount)}${hasReceipts ? ", memiliki lampiran" : ""}"><span class="transaction-icon ${incoming ? "income" : transfer ? "" : "expense"}">${transactionIcon}</span><span class="transaction-copy"><strong>${esc(title)}</strong><span>${esc(meta)}</span>${attachment}</span><span class="transaction-money"><strong class="${incoming ? "income-text" : transfer ? "" : "expense-text"}">${sign}${fmt(tx.amount)}</strong><span>Saldo ${fmt(after)}</span></span></div>`;
   }
+  function matchesTransactionSearch(tx, query) {
+    if (!query) return true;
+    const amount = Math.round(Number(tx.amount) || 0);
+    const searchable = tx.type === "transfer"
+      ? [accountName(tx.fromAccountId), accountName(tx.toAccountId), "transfer", tx.note, tx.date, formatDate(tx.date), String(amount), groupedInteger(String(amount)), fmt(amount)]
+      : [tx.name, tx.category, accountName(tx.accountId), tx.note, tx.date, formatDate(tx.date), tx.type === "income" ? "pemasukan diterima" : "pengeluaran dibayar", String(amount), groupedInteger(String(amount)), fmt(amount)];
+    return searchable.some(value => String(value ?? "").toLocaleLowerCase().includes(query));
+  }
   function renderHome() {
     const query = searchTerm.trim().toLocaleLowerCase();
-    const visible = sortedTransactions(periodTransactions().filter(tx => {
-      if (!query) return true;
-      const searchable = tx.type === "transfer"
-        ? `${accountName(tx.fromAccountId)} ${accountName(tx.toAccountId)} transfer ${tx.note || ""}`
-        : `${tx.name || ""} ${tx.category || ""} ${accountName(tx.accountId)} ${tx.note || ""}`;
-      return searchable.toLocaleLowerCase().includes(query);
-    }));
+    const visible = sortedTransactions(periodTransactions().filter(tx => matchesTransactionSearch(tx, query)));
     const sums = totals(periodTransactions());
     const grouped = visible.reduce((result, tx) => { (result[tx.date] ||= []).push(tx); return result; }, {});
     const groups = Object.entries(grouped).map(([date, txs]) => `<section class="transaction-group"><div class="group-date"><strong>${esc(formatDate(date))}</strong><span>${txs.length} transaksi</span></div>${txs.map(tx => transactionRow(tx)).join("")}</section>`).join("");
     return `${heading(`Halo, ${esc(state.settings.userName || "Namamu")} 👋`, "Ini ringkasan kondisi keuanganmu hari ini.", `<button class="button button-outline" data-page="all-reports"><i data-lucide="file-chart-column"></i> Lihat laporan</button>`)}
       <div class="summary-grid">${summaryCard("Total menerima", sums.income, "arrow-down-left", "income", "Pemasukan tercatat")}${summaryCard("Total membayar", sums.expense, "arrow-up-right", "expense", "Pengeluaran tercatat")}${summaryCard("Saldo saat ini", Object.values(accountBalances()).reduce((a,b)=>a+b,0), "wallet", "balance", "Seluruh akun")}</div>
       <div class="transaction-actions"><button class="money-button income" data-action="add-income"><i data-lucide="plus"></i> KAMU MENERIMA</button><button class="money-button expense" data-action="add-expense"><i data-lucide="minus"></i> KAMU MEMBAYAR</button></div>
-      <div class="panel"><div class="panel-header"><h2>Riwayat transaksi</h2><div class="period-tabs">${[["all","Semua"],["day","Harian"],["week","Mingguan"],["month","Bulanan"],["year","Tahunan"]].map(([key,label])=>`<button class="period-tab ${period===key?"active":""}" data-period="${key}">${label}</button>`).join("")}</div></div>
-      ${groups || empty("receipt-text","Belum ada transaksi","Catat pemasukan atau pengeluaran pertama Anda.")}</div>`;
+      <div class="panel"><div class="panel-header"><h2>${query ? "Hasil pencarian" : "Riwayat transaksi"}</h2><div class="period-tabs">${[["all","Semua"],["day","Harian"],["week","Mingguan"],["month","Bulanan"],["year","Tahunan"]].map(([key,label])=>`<button class="period-tab ${period===key?"active":""}" data-period="${key}">${label}</button>`).join("")}</div></div>
+      ${groups || (query ? empty("search","Transaksi tidak ditemukan",`Tidak ada transaksi yang cocok dengan "${esc(searchTerm.trim())}". Coba kata kunci lain.`) : empty("receipt-text","Belum ada transaksi","Catat pemasukan atau pengeluaran pertama Anda."))}</div>`;
   }
   function renderAccounts() {
     const cards = state.accounts.map(account => `<article class="panel account-card"><div class="account-card-top"><span class="account-dot"><i data-lucide="${account.type === "Bank" ? "landmark" : "wallet"}"></i></span><div class="table-actions"><button data-action="edit-account" data-id="${esc(account.id)}" aria-label="Edit akun"><i data-lucide="pencil"></i></button><button data-action="delete-account" data-id="${esc(account.id)}" aria-label="Hapus akun"><i data-lucide="trash-2"></i></button></div></div><h3>${esc(account.name)}</h3><div class="account-balance">${fmt(accountBalances()[account.id])}</div><div class="account-card-footer"><span>${esc(account.type)}</span><span>Saldo awal ${fmt(account.openingBalance)}</span></div></article>`).join("");
