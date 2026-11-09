@@ -24,7 +24,7 @@ service cloud.firestore {
 }
 ```
 
-Dokumen pengguna disimpan di `users/{uid}/appData/current`. Saat akun cloud berisi data, aplikasi meminta konfirmasi sebelum memilih data cloud atau menggantinya dengan data lokal. Dokumen Firestore dibatasi ukurannya; sinkronisasi memberi tahu jika data melewati batas dan tetap mempertahankan salinan lokal. Foto bukti dan foto profil dapat membuat data melebihi batas dokumen. Karena satu dokumen menyimpan seluruh data, hindari mengubah data secara bersamaan di beberapa perangkat.
+Dokumen pengguna disimpan di `users/{uid}/appData/current`. Saat login, jika akun cloud berisi data yang valid, data cloud otomatis digunakan dan menggantikan data lokal di perangkat. Jika akun cloud belum memiliki data, aplikasi meminta konfirmasi sebelum mengunggah data lokal. Dokumen Firestore dibatasi ukurannya; sinkronisasi memberi tahu jika data melewati batas dan tetap mempertahankan salinan lokal. Foto bukti dan foto profil dapat membuat data melebihi batas dokumen. Karena satu dokumen menyimpan seluruh data, hindari mengubah data secara bersamaan di beberapa perangkat.
 
 ## Memasang di Android
 

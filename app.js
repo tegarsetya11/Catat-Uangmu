@@ -243,18 +243,7 @@
       if (snapshot.exists) {
         const remoteState = snapshot.data()?.state;
         if (!isValidCloudState(remoteState)) throw new Error("Format data cloud tidak valid. Data lokal tidak diubah.");
-        const useCloud = window.confirm("Data Catat Uangmu ditemukan di akun Google.\n\nPilih OK untuk mengganti data di perangkat ini dengan data cloud.\nPilih Batal untuk mempertahankan data di perangkat ini dan mengunggahnya sebagai pengganti data cloud.");
-        if (useCloud) {
-          persistCloudState(remoteState);
-        } else {
-          const confirmUpload = window.confirm("Unggah data lokal ini dan ganti data yang saat ini tersimpan di akun Google?");
-          if (!confirmUpload) {
-            connectedCloudUid = "";
-            await cloudAuth.signOut();
-            return;
-          }
-          await writeCloudDocument(document, state);
-        }
+        persistCloudState(remoteState);
       } else {
         const uploadLocal = window.confirm("Belum ada data Catat Uangmu di akun Google ini.\n\nUnggah data lokal perangkat ini agar bisa dipakai di perangkat lain?");
         if (!uploadLocal) {
