@@ -83,11 +83,14 @@
 .transaction-datetime{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .transaction-amount .field-input{height:60px;font-size:23px;font-weight:700}
 .transaction-note .field-textarea{min-height:72px}
-.transaction-tools{display:flex;gap:10px}
+.transaction-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .transaction-tool{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;flex:1;padding:9px;border:1px dashed var(--line);border-radius:8px;background:var(--surface);color:var(--muted);font-size:10px;font-weight:600;cursor:pointer}
 .transaction-tool svg{width:16px;height:16px;color:var(--blue)}
 .receipt-preview{display:flex;align-items:center;gap:12px;padding:8px;border:1px solid var(--line);border-radius:8px}
 .receipt-preview img{width:64px;height:64px;border-radius:6px;object-fit:cover}
+.receipt-preview-document{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px}
+.receipt-preview-document svg{width:24px;color:var(--blue)}
+.receipt-pdf-link{margin-top:8px}
 .transaction-form-footer{display:flex;justify-content:flex-end;gap:8px;padding-top:14px;margin-top:12px;border-top:1px solid var(--line)}
 .transaction-form-footer [data-action="close-modal"]{background:#ff0000;border-color:#ff0000;color:#fff}
 .transaction-form-footer [data-continue="true"]{background:#fed113;border-color:#fed113;color:#503b00}

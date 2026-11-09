@@ -39,7 +39,7 @@ Buka situs Catat Uangmu melalui Chrome Android, lalu tekan **Instal aplikasi** p
 - Saat pertama kali membuka aplikasi, pilih login Google untuk sinkronisasi atau lanjut tanpa akun untuk menyimpan data hanya di browser ini.
 - Tambahkan, ganti, atau hapus foto profil melalui bagian Profil dan tampilan di Pengaturan.
 - Pilih tampilan waktu 12 jam (AM/PM) atau 24 jam; pemilihan jam menggunakan dial analog.
-- Form transaksi memiliki kolom nama transaksi terpisah dari catatan tambahan, tidak meminta kategori, serta mendukung bukti gambar dan daftar barang. Pengaturan menyediakan tombol kembali ke halaman Lihat Uangmu.
+- Form transaksi memiliki kolom nama transaksi terpisah dari catatan tambahan, tidak meminta kategori, serta mendukung bukti foto dari kamera atau galeri, PDF hingga 2 MB, dan daftar barang. PDF dapat dibuka dari detail transaksi. Pengaturan menyediakan tombol kembali ke halaman Lihat Uangmu.
 - Nominal transaksi, transfer, saldo awal akun, dan harga barang otomatis menggunakan pemisah ribuan titik saat diketik.
 - Transfer tidak dihitung sebagai pemasukan atau pengeluaran. Saldo historis dihitung ulang berdasarkan tanggal dan waktu transaksi.
 

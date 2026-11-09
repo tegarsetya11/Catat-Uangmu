@@ -668,16 +668,17 @@
     const actualType=tx?.type||type;
     transactionItems=(tx?.items||[]).map(item=>({...item}));
     transactionReceipt=tx?.receipt||"";
-    openModal(id?"Edit transaksi":actualType==="income"?"Tambah pemasukan":"Tambah pengeluaran","Catat nominal dan detail transaksi.",`<form id="transaction-form"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="type" value="${actualType}"><div class="transaction-layout"><div class="transaction-type-tabs"><button type="button" class="transaction-type-tab income ${actualType==="income"?"active":""}" data-action="transaction-type" data-type="income">Kamu Menerima</button><button type="button" class="transaction-type-tab expense ${actualType==="expense"?"active":""}" data-action="transaction-type" data-type="expense">Kamu Membayar</button></div><label class="transaction-account"><span class="field-label">Akun</span><select class="field-select" name="accountId" required>${options(state.accounts,tx?.accountId)}</select></label><div class="transaction-datetime"><label class="form-field"><span class="field-label">Tanggal *</span><input class="field-input" type="date" name="date" required value="${esc(tx?.date||today())}"></label><label class="form-field"><span class="field-label">Jam *</span>${timeField("transaction-time",tx?.time)}</label></div><label class="transaction-amount"><span class="field-label transaction-amount-label">${actualType==="income"?"Kamu Menerima":"Kamu Membayar"} *</span><input class="field-input" name="amount" type="text" data-money-input inputmode="numeric" autocomplete="off" required placeholder="0" value="${tx?groupedInteger(tx.amount):""}"></label><label class="transaction-name"><span class="field-label">Nama transaksi *</span><input class="field-input" name="name" maxlength="80" required placeholder="Contoh: Belanja bulanan" value="${esc(tx?.name||"")}"></label><label class="transaction-note"><span class="field-label">Catatan tambahan (opsional)</span><textarea class="field-textarea" name="note" maxlength="500" placeholder="Catatan">${esc(tx?.note||"")}</textarea></label><div class="transaction-tools"><label class="transaction-tool"><i data-lucide="camera"></i><span>${transactionReceipt?"Bukti terlampir":"Tambah tagihan"}</span><input id="receipt-file" type="file" accept="image/*" capture="environment" hidden></label><button id="items-button" class="transaction-tool" type="button" data-action="open-items"><i data-lucide="list"></i><span>Tambah Barang${transactionItems.length?` (${transactionItems.length})`:""}</span></button></div><div id="receipt-preview">${renderReceiptPreviewMarkup()}</div></div><div id="transaction-items-panel" hidden></div><div class="transaction-form-footer"><button type="button" class="button button-outline" data-action="close-modal">Batal</button><button type="submit" class="button button-outline" data-continue="true">Simpan dan lanjutkan</button><button type="submit" class="button button-primary">Simpan dan keluar</button></div></form>`,true);
+    openModal(id?"Edit transaksi":actualType==="income"?"Tambah pemasukan":"Tambah pengeluaran","Catat nominal dan detail transaksi.",`<form id="transaction-form"><input type="hidden" name="id" value="${esc(id)}"><input type="hidden" name="type" value="${actualType}"><div class="transaction-layout"><div class="transaction-type-tabs"><button type="button" class="transaction-type-tab income ${actualType==="income"?"active":""}" data-action="transaction-type" data-type="income">Kamu Menerima</button><button type="button" class="transaction-type-tab expense ${actualType==="expense"?"active":""}" data-action="transaction-type" data-type="expense">Kamu Membayar</button></div><label class="transaction-account"><span class="field-label">Akun</span><select class="field-select" name="accountId" required>${options(state.accounts,tx?.accountId)}</select></label><div class="transaction-datetime"><label class="form-field"><span class="field-label">Tanggal *</span><input class="field-input" type="date" name="date" required value="${esc(tx?.date||today())}"></label><label class="form-field"><span class="field-label">Jam *</span>${timeField("transaction-time",tx?.time)}</label></div><label class="transaction-amount"><span class="field-label transaction-amount-label">${actualType==="income"?"Kamu Menerima":"Kamu Membayar"} *</span><input class="field-input" name="amount" type="text" data-money-input inputmode="numeric" autocomplete="off" required placeholder="0" value="${tx?groupedInteger(tx.amount):""}"></label><label class="transaction-name"><span class="field-label">Nama transaksi *</span><input class="field-input" name="name" maxlength="80" required placeholder="Contoh: Belanja bulanan" value="${esc(tx?.name||"")}"></label><label class="transaction-note"><span class="field-label">Catatan tambahan (opsional)</span><textarea class="field-textarea" name="note" maxlength="500" placeholder="Catatan">${esc(tx?.note||"")}</textarea></label><div class="transaction-tools"><button class="transaction-tool" type="button" data-action="choose-receipt-file" data-file-input="receipt-camera-file"><i data-lucide="camera"></i><span>Kamera</span></button><button class="transaction-tool" type="button" data-action="choose-receipt-file" data-file-input="receipt-gallery-file"><i data-lucide="image"></i><span>Galeri</span></button><button class="transaction-tool" type="button" data-action="choose-receipt-file" data-file-input="receipt-pdf-file"><i data-lucide="file-text"></i><span>Upload PDF</span></button><button id="items-button" class="transaction-tool" type="button" data-action="open-items"><i data-lucide="list"></i><span>Tambah Barang${transactionItems.length?` (${transactionItems.length})`:""}</span></button><input id="receipt-camera-file" class="receipt-file" type="file" accept="image/*" capture="environment" hidden><input id="receipt-gallery-file" class="receipt-file" type="file" accept="image/*" hidden><input id="receipt-pdf-file" class="receipt-file" type="file" accept="application/pdf,.pdf" hidden></div><div id="receipt-preview">${renderReceiptPreviewMarkup()}</div></div><div id="transaction-items-panel" hidden></div><div class="transaction-form-footer"><button type="button" class="button button-outline" data-action="close-modal">Batal</button><button type="submit" class="button button-outline" data-continue="true">Simpan dan lanjutkan</button><button type="submit" class="button button-primary">Simpan dan keluar</button></div></form>`,true);
   }
+  const isPdfReceipt = receipt => receipt.startsWith("data:application/pdf;base64,");
   function renderReceiptPreviewMarkup() {
-    return transactionReceipt ? `<div class="receipt-preview"><img src="${transactionReceipt}" alt="Pratinjau bukti transaksi"><button class="button button-ghost" type="button" data-action="remove-receipt">Hapus bukti</button></div>` : "";
+    if(!transactionReceipt)return "";
+    const preview=isPdfReceipt(transactionReceipt)?`<span class="receipt-preview-document"><i data-lucide="file-text"></i><span>Dokumen PDF terlampir</span></span>`:`<img src="${transactionReceipt}" alt="Pratinjau bukti transaksi">`;
+    return `<div class="receipt-preview">${preview}<button class="button button-ghost" type="button" data-action="remove-receipt">Hapus bukti</button></div>`;
   }
   function renderReceiptPreview() {
     const preview=document.getElementById("receipt-preview");
     if(preview)preview.innerHTML=renderReceiptPreviewMarkup();
-    const tool=document.querySelector(".transaction-tool input#receipt-file")?.closest(".transaction-tool");
-    if(tool)tool.querySelector("span").textContent=transactionReceipt?"Bukti terlampir":"Tambah tagihan";
     if(window.lucide)window.lucide.createIcons();
   }
   function renderItemsEditor() {
@@ -697,6 +698,21 @@
         if(!blob){reject(new Error("Gambar bukti tidak dapat diproses."));return;}
         const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(new Error("Gambar bukti tidak dapat dibaca."));reader.readAsDataURL(blob);
       },"image/jpeg",.72));
+    });
+  }
+  function readPdfReceipt(file) {
+    if(file.type?file.type!=="application/pdf":!file.name.toLowerCase().endsWith(".pdf"))return Promise.reject(new Error("Pilih berkas PDF yang valid."));
+    if(!file.size)return Promise.reject(new Error("Berkas PDF kosong."));
+    if(file.size>2*1024*1024)return Promise.reject(new Error("Ukuran PDF maksimal 2 MB."));
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>{
+        const result=String(reader.result),separator=result.indexOf(",");
+        if(separator<0){reject(new Error("Berkas PDF tidak dapat dibaca."));return;}
+        resolve(`data:application/pdf;base64,${result.slice(separator+1)}`);
+      };
+      reader.onerror=()=>reject(new Error("Berkas PDF tidak dapat dibaca."));
+      reader.readAsDataURL(file);
     });
   }
   function transferForm(id="") {
@@ -726,7 +742,7 @@
     const tx=state.transactions.find(t=>t.id===id);if(!tx)return;
     const typeLabel=tx.type==="income"?"Pemasukan":tx.type==="expense"?"Pengeluaran":"Transfer";
     const items=Array.isArray(tx.items)&&tx.items.length?`<div class="transaction-detail-items"><strong>Barang</strong>${tx.items.map(item=>`<div><span>${esc(item.name)} × ${item.quantity}</span><span>${fmt(item.quantity*item.price)}</span></div>`).join("")}</div>`:"";
-    const receipt=tx.receipt?`<div class="receipt-detail"><strong>Bukti transaksi</strong><img src="${esc(tx.receipt)}" alt="Bukti transaksi. Tekan untuk memperbesar." role="button" tabindex="0" data-action="view-receipt"></div>`:"";
+    const receipt=tx.receipt?`<div class="receipt-detail"><strong>Bukti transaksi</strong>${isPdfReceipt(tx.receipt)?`<a class="button button-outline receipt-pdf-link" href="${esc(tx.receipt)}" target="_blank" rel="noopener"><i data-lucide="file-text"></i> Buka PDF</a>`:`<img src="${esc(tx.receipt)}" alt="Bukti transaksi. Tekan untuk memperbesar." role="button" tabindex="0" data-action="view-receipt">`}</div>`:"";
     openModal("Detail transaksi",`${typeLabel} · ${formatDate(tx.date,{day:"2-digit",month:"long",year:"numeric"})}`,`<div class="account-mini"><span class="account-mini-copy"><strong>${esc(tx.name||"Transfer antar akun")}</strong><span>${esc(tx.category||typeLabel)} · ${esc(formatTime(tx.time))}</span></span><strong class="${tx.type==="income"?"income-text":tx.type==="expense"?"expense-text":""}">${fmt(tx.amount)}</strong></div><div class="account-mini"><span class="account-mini-copy"><strong>${tx.type==="transfer"?"Dari akun":"Akun"}</strong></span><strong>${esc(accountName(tx.type==="transfer"?tx.fromAccountId:tx.accountId))}</strong></div>${tx.type==="transfer"?`<div class="account-mini"><span class="account-mini-copy"><strong>Ke akun</strong></span><strong>${esc(accountName(tx.toAccountId))}</strong></div>`:""}<div class="account-mini"><span class="account-mini-copy"><strong>Saldo setelah transaksi</strong></span><strong>${fmt(balancesAfter()[tx.id])}</strong></div>${tx.note?`<p class="muted" style="font-size:10px;line-height:1.6">${esc(tx.note)}</p>`:""}${items}${receipt}<div class="modal-actions"><button class="button button-danger" data-action="trash-transaction" data-id="${esc(tx.id)}"><i data-lucide="trash-2"></i> Hapus</button><button class="button button-outline" data-action="close-modal">Tutup</button><button class="button button-primary" data-action="${tx.type==="transfer"?"edit-transfer":"edit-transaction"}" data-id="${esc(tx.id)}"><i data-lucide="pencil"></i> Edit</button></div>`);
   }
   function exportRows() {
@@ -786,7 +802,7 @@
     const validTx=tx=>{
       if(!tx||!validId(tx.id)||transactionIds.has(tx.id)||!["income","expense","transfer"].includes(tx.type)||!Number.isSafeInteger(Number(tx.amount))||Number(tx.amount)<=0||!isValidISODate(tx.date)||(tx.time&&!isValidTime(tx.time)))return false;
       if(tx.type==="transfer"?(!accountIds.has(tx.fromAccountId)||!accountIds.has(tx.toAccountId)||tx.fromAccountId===tx.toAccountId):(!accountIds.has(tx.accountId)||typeof tx.name!=="string"||!tx.name.trim()))return false;
-      if(tx.receipt!==undefined&&(typeof tx.receipt!=="string"||tx.receipt.length>5_000_000||!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.test(tx.receipt)))return false;
+      if(tx.receipt!==undefined&&(typeof tx.receipt!=="string"||tx.receipt.length>5_000_000||!/^data:(?:image\/(?:jpeg|png|webp)|application\/pdf);base64,[A-Za-z0-9+/]+=*$/.test(tx.receipt)))return false;
       if(tx.items!==undefined&&(!Array.isArray(tx.items)||tx.items.some(item=>!item||typeof item.name!=="string"||!item.name.trim()||!Number.isSafeInteger(item.quantity)||item.quantity<1||!Number.isSafeInteger(item.price)||item.price<0||!Number.isSafeInteger(item.quantity*item.price))))return false;
       transactionIds.add(tx.id);
       return true;
@@ -859,6 +875,7 @@
         form.querySelector(".transaction-amount-label").textContent=`${action.dataset.type==="income"?"Kamu Menerima":"Kamu Membayar"} *`;
         break;
       }
+      case "choose-receipt-file":document.getElementById(action.dataset.fileInput)?.click();break;
       case "open-items":{
         document.querySelector(".transaction-layout").hidden=true;
         const panel=document.getElementById("transaction-items-panel");panel.hidden=false;renderItemsEditor();break;
@@ -1072,9 +1089,9 @@
       const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(String(reader.result));if(!validateBackup(data))throw new Error("Struktur cadangan tidak valid.");if(!confirm("Pulihkan cadangan ini? Data aplikasi saat ini akan digantikan."))return;const {exportedAt,format,...rest}=data;state=rest;persist("Cadangan berhasil dipulihkan.");}catch(error){notify(`Cadangan gagal dipulihkan: ${error.message}`,true);}finally{event.target.value="";}};reader.onerror=()=>notify("Berkas cadangan tidak dapat dibaca.",true);reader.readAsText(file);
       return;
     }
-    if(event.target.id==="receipt-file"){
+    if(event.target.matches(".receipt-file")){
       const file=event.target.files?.[0];if(!file)return;
-      try{transactionReceipt=await compressReceipt(file);renderReceiptPreview();}
+      try{transactionReceipt=event.target.id==="receipt-pdf-file"?await readPdfReceipt(file):await compressReceipt(file);renderReceiptPreview();}
       catch(error){notify(`Bukti transaksi gagal ditambahkan: ${error.message}`,true);}
       finally{event.target.value="";}
     }
