@@ -34,7 +34,7 @@ Buka situs Catat Uangmu melalui Chrome Android, lalu tekan **Instal aplikasi** p
 
 - Pemasukan, pengeluaran, saldo per akun, edit, filter periode, serta tempat sampah transaksi.
 - Cari transaksi berdasarkan nama, catatan, kategori, akun, tanggal, nominal, atau jenis transaksi dari halaman Lihat Uangmu.
-- Banyak akun, transfer antar akun, ringkasan, laporan terfilter, grafik, dan ekspor CSV, XLSX, atau PDF melalui dialog cetak browser.
+- Banyak akun, transfer antar akun, ringkasan, laporan terfilter, grafik, dan ekspor CSV, XLSX, atau PDF. Ekspor PDF membuka pratinjau di tab baru sekaligus mengunduh berkas PDF.
 - Kategori, catatan, kalender aktivitas, kalkulator uang, pencadangan/pemulihan JSON, dan PIN pembuka opsional.
 - Saat pertama kali membuka aplikasi, isi nama pengguna dan nama akun awal.
 - Saat pertama kali membuka aplikasi, pilih login Google untuk sinkronisasi atau lanjut tanpa akun untuk menyimpan data hanya di browser ini.

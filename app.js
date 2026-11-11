@@ -361,6 +361,8 @@
     document.getElementById("page-title").textContent = pageTitles[page] || "Lihat Uangmu";
     document.getElementById("page-content").innerHTML = (renderers[page] || renderHome)();
     document.getElementById("search-input").value = searchTerm;
+    document.querySelector(".search-box").classList.toggle("search-box-collapsed",!searchTerm);
+    document.querySelector(".search-clear").hidden = !searchTerm;
     if (window.lucide) window.lucide.createIcons();
     if (page === "reports" || page === "all-reports") drawChart();
   }
@@ -793,13 +795,146 @@
     ];
     download(makeZip(files),`laporan-keuangan-${today()}.xlsx`);notify("Laporan Excel berhasil diunduh.");
   }
-  function exportPDF() {
-    const rows=exportRows().slice(1);
-    const popup=window.open("","_blank");
-    if(!popup){notify("Izinkan pop-up browser untuk mencetak laporan PDF.",true);return;}
-    const body=rows.map(r=>`<tr>${r.map((v,i)=>`<td>${esc(i===6?fmt(v):v)}</td>`).join("")}</tr>`).join("");
-    popup.document.write(`<!doctype html><html lang="id"><meta charset="utf-8"><title>Laporan ${APP_NAME}</title><style>body{font:12px Arial;padding:24px;color:#253247}h1{font-size:20px}p{color:#637087}table{border-collapse:collapse;width:100%}td,th{border:1px solid #dfe5ec;padding:7px;text-align:left}th{background:#eef3fa}@media print{button{display:none}}</style><h1>Laporan ${APP_NAME}</h1><p>Diekspor ${formatDate(today(),{day:"2-digit",month:"long",year:"numeric"})}</p><table><thead><tr>${exportRows()[0].map(x=>`<th>${esc(x)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table><script>window.onload=()=>window.print()<\\/script></html>`);
-    popup.document.close();
+  function wrapPdfText(context,text,maxWidth,maxLines=3) {
+    const words=String(text??"").replace(/\s+/g," ").trim().split(" ").filter(Boolean);
+    if(!words.length)return [""];
+    const lines=[];
+    let line="";
+    for(const word of words){
+      if(context.measureText(word).width<=maxWidth){
+        const candidate=line?`${line} ${word}`:word;
+        if(line&&context.measureText(candidate).width>maxWidth){lines.push(line);line=word;}
+        else line=candidate;
+        continue;
+      }
+      if(line){lines.push(line);line="";}
+      let part="";
+      for(const character of word){
+        if(part&&context.measureText(part+character).width>maxWidth){lines.push(part);part=character;}
+        else part+=character;
+      }
+      line=part;
+    }
+    if(line)lines.push(line);
+    if(lines.length>maxLines){
+      lines.length=maxLines;
+      let last=lines[maxLines-1];
+      while(last&&context.measureText(`${last}…`).width>maxWidth)last=last.slice(0,-1);
+      lines[maxLines-1]=`${last}…`;
+    }
+    return lines;
+  }
+  function joinBytes(chunks) {
+    const result=new Uint8Array(chunks.reduce((size,chunk)=>size+chunk.length,0));
+    let offset=0;
+    for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.length;}
+    return result;
+  }
+  async function createPdfReport(rows) {
+    const pageWidth=842,pageHeight=595,scale=1.5;
+    const columnWidths=[64,42,70,126,78,126,84,188];
+    const encoder=new TextEncoder(),measureCanvas=document.createElement("canvas");
+    const measureContext=measureCanvas.getContext("2d");
+    if(!measureContext)throw new Error("Canvas tidak tersedia di browser ini.");
+    measureContext.font="8px Arial, sans-serif";
+    const preparedRows=rows.map(row=>row.map((value,index)=>wrapPdfText(measureContext,index===6?fmt(value):value,columnWidths[index]-10)));
+    const rowHeights=preparedRows.map(cells=>Math.max(26,...cells.map(lines=>lines.length*10+10)));
+    const pageRows=[];
+    let currentPage=[],usedHeight=0;
+    for(let index=0;index<preparedRows.length;index++){
+      if(currentPage.length&&usedHeight+rowHeights[index]>455){pageRows.push(currentPage);currentPage=[];usedHeight=0;}
+      currentPage.push(index);usedHeight+=rowHeights[index];
+    }
+    if(currentPage.length||!pageRows.length)pageRows.push(currentPage);
+    const images=[];
+    for(let pageIndex=0;pageIndex<pageRows.length;pageIndex++){
+      const canvas=document.createElement("canvas");
+      canvas.width=pageWidth*scale;canvas.height=pageHeight*scale;
+      const context=canvas.getContext("2d");
+      if(!context)throw new Error("Laporan PDF tidak dapat dirender.");
+      context.scale(scale,scale);
+      context.fillStyle="#ffffff";context.fillRect(0,0,pageWidth,pageHeight);
+      context.fillStyle="#253247";context.font="bold 18px Arial, sans-serif";context.textBaseline="top";
+      context.fillText(`Laporan ${APP_NAME}`,32,22);
+      context.fillStyle="#637087";context.font="9px Arial, sans-serif";
+      context.fillText(`Diekspor ${formatDate(today(),{day:"2-digit",month:"long",year:"numeric"})}`,32,46);
+      context.fillText(`Halaman ${pageIndex+1} dari ${pageRows.length}`,pageWidth-112,28);
+      const tableTop=68,headerHeight=26;
+      context.fillStyle="#1769e0";context.fillRect(32,tableTop,pageWidth-64,headerHeight);
+      context.fillStyle="#ffffff";context.font="bold 8px Arial, sans-serif";
+      const headers=exportRows()[0];
+      let x=32;
+      headers.forEach((header,index)=>{context.fillText(header,x+5,tableTop+9);x+=columnWidths[index];});
+      let y=tableTop+headerHeight;
+      if(!pageRows[pageIndex].length){
+        context.fillStyle="#637087";context.font="10px Arial, sans-serif";
+        context.fillText("Belum ada transaksi untuk dilaporkan.",37,y+12);
+      }
+      for(const rowIndex of pageRows[pageIndex]){
+        const height=rowHeights[rowIndex],cells=preparedRows[rowIndex];
+        context.fillStyle=rowIndex%2?"#f3f6fa":"#ffffff";context.fillRect(32,y,pageWidth-64,height);
+        context.strokeStyle="#dfe5ec";context.lineWidth=.5;context.strokeRect(32,y,pageWidth-64,height);
+        x=32;
+        cells.forEach((lines,columnIndex)=>{
+          context.fillStyle="#253247";context.font="8px Arial, sans-serif";
+          lines.forEach((line,lineIndex)=>context.fillText(line,x+5,y+5+lineIndex*10));
+          x+=columnWidths[columnIndex];
+          if(columnIndex<cells.length-1){context.beginPath();context.moveTo(x,y);context.lineTo(x,y+height);context.stroke();}
+        });
+        y+=height;
+      }
+      const imageBlob=await new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error("Halaman laporan PDF tidak dapat dibuat.")),"image/jpeg",.92));
+      images.push({bytes:new Uint8Array(await imageBlob.arrayBuffer()),width:canvas.width,height:canvas.height});
+    }
+    const objects=[null];
+    const addObject=content=>{objects.push(content);return objects.length-1;};
+    const catalogId=addObject("");
+    const pagesId=addObject("");
+    const pageIds=[];
+    for(const image of images){
+      const pageId=objects.length,contentId=pageId+1,imageId=pageId+2;
+      pageIds.push(pageId);
+      addObject(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+      addObject(`<< /Length ${encoder.encode(`q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ`).length} >>\nstream\nq\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ\nendstream`);
+      const imageHeader=encoder.encode(`${imageId} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`);
+      const imageFooter=encoder.encode("\nendstream\nendobj\n");
+      objects[imageId]=joinBytes([imageHeader,image.bytes,imageFooter]);
+    }
+    objects[catalogId]=`<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
+    objects[pagesId]=`<< /Type /Pages /Kids [${pageIds.map(id=>`${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
+    const parts=[encoder.encode("%PDF-1.4\n")],offsets=[0];
+    let byteLength=parts[0].length;
+    for(let id=1;id<objects.length;id++){
+      offsets[id]=byteLength;
+      const content=objects[id];
+      const objectBytes=content instanceof Uint8Array?content:encoder.encode(`${id} 0 obj\n${content}\nendobj\n`);
+      parts.push(objectBytes);byteLength+=objectBytes.length;
+    }
+    const xrefOffset=byteLength;
+    let xref=`xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+    for(let id=1;id<objects.length;id++)xref+=`${String(offsets[id]).padStart(10,"0")} 00000 n \n`;
+    xref+=`trailer\n<< /Size ${objects.length} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    parts.push(encoder.encode(xref));
+    return new Blob([joinBytes(parts)],{type:"application/pdf"});
+  }
+  async function exportPDF() {
+    const popup=window.open("about:blank","_blank");
+    if(!popup){notify("Izinkan pop-up browser untuk membuka pratinjau PDF.",true);return;}
+    try{
+      popup.document.write(`<!doctype html><html lang="id"><meta charset="utf-8"><title>Menyiapkan PDF</title><body style="font:16px Arial,sans-serif;padding:32px;color:#253247">Menyiapkan pratinjau laporan PDF…</body></html>`);
+      const rows=exportRows().slice(1);
+      const blob=await createPdfReport(rows);
+      const url=URL.createObjectURL(blob),filename=`laporan-keuangan-${today()}.pdf`;
+      const link=document.createElement("a");
+      link.href=url;link.download=filename;link.style.position="fixed";link.style.left="-9999px";document.body.append(link);link.click();link.remove();
+      popup.location.replace(url);
+      setTimeout(()=>URL.revokeObjectURL(url),60_000);
+      notify("Pratinjau laporan dibuka dan PDF diunduh.");
+    }catch(error){
+      popup.close();
+      console.error("Gagal membuat laporan PDF:",error);
+      notify(`PDF tidak dapat dibuat: ${error.message}`,true);
+    }
   }
   function exportBackup() {
     const data={...state,exportedAt:new Date().toISOString(),format:"catatan-keuangan-backup-v1"};
@@ -874,6 +1009,7 @@
     const action=event.target.closest("[data-action]");if(!action)return;
     const id=action.dataset.id;
     switch(action.dataset.action){
+      case "clear-search":searchTerm="";render();document.getElementById("search-input").blur();break;
       case "close-modal":if(!closeReceiptImage())closeModal();break;
       case "view-receipt":showReceiptImage(action.src);break;
       case "close-receipt-image":closeReceiptImage();break;
